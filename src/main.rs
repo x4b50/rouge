@@ -153,6 +153,9 @@ const ROOMS_X: u16 = 4;
 const ROOMS_Y: u16 = 3;
 const MIN_ROOM_COUNT: u32 = 8;
 const HALLWAYS_SIZE: usize = ((ROOMS_X-1)*ROOMS_Y + ROOMS_X*(ROOMS_Y-1)) as usize;
+const EMPTY_ROOM: Room = Room {
+    pos: Rect {x:0, y:0, w:0, h:0}
+};
 const CHAR_WALL: char = '#';
 const CHAR_PLAYER: char = '@';
 
@@ -169,17 +172,12 @@ fn main() -> Result<(), ()>{
 
     let height = height-2;
 
-    // TODO: might use it more, I think
-    let empty_room = Room {
-        pos: Rect {x:0, y:0, w:0, h:0}
-    };
-
-    let mut grid = [[empty_room;ROOMS_X as usize];ROOMS_Y as usize];
+    let mut grid = [[EMPTY_ROOM;ROOMS_X as usize];ROOMS_Y as usize];
     let mut room_count = 0;
     while room_count < MIN_ROOM_COUNT {
         for (r, row) in (&mut grid).iter_mut().enumerate() {
             for (c, column) in row.iter_mut().enumerate() {
-                if *column == empty_room && rand::random() {
+                if *column == EMPTY_ROOM && rand::random() {
                     let r = r as u16;
                     let c = c as u16;
                     let x = rand::thread_rng().gen_range(c*width/ROOMS_X..(c+1)*width/ROOMS_X);
@@ -206,7 +204,7 @@ fn main() -> Result<(), ()>{
 
     for row in &grid {
         for column in row {
-            if *column != empty_room {
+            if *column != EMPTY_ROOM {
                 queue_rect(&mut stdout, &column.pos);
             }
         }
@@ -215,17 +213,17 @@ fn main() -> Result<(), ()>{
     let mut hallways_present =  [false; HALLWAYS_SIZE];
     let mut hallways = [Hallway{
         entr: (Point {x:0, y:0}, Point {x:0, y:0}),
-        rooms: (&empty_room, &empty_room)
+        rooms: (&EMPTY_ROOM, &EMPTY_ROOM)
     };HALLWAYS_SIZE];
 
     let mut doors_count = 0;
     for y in 0..ROOMS_Y {
         for x in 0..ROOMS_X {
             let room = &grid[y as usize][x as usize];
-            if *room != empty_room {
+            if *room != EMPTY_ROOM {
                 for x2 in x+1..ROOMS_X {
                     let room2 = &grid[y as usize][x2 as usize];
-                    if *room2 != empty_room {
+                    if *room2 != EMPTY_ROOM {
                         let posx1 = room.pos.x + room.pos.w-1;
                         let posy1 = room.pos.y + room.pos.h/2;
                         let posx2 = room2.pos.x;
@@ -244,7 +242,7 @@ fn main() -> Result<(), ()>{
 
                 for y2 in y+1..ROOMS_Y {
                     let room2 = &grid[y2 as usize][x as usize];
-                    if *room2 != empty_room {
+                    if *room2 != EMPTY_ROOM {
                         let posx1 = room.pos.x + room.pos.w/2;
                         let posy1 = room.pos.y + room.pos.h-1;
                         let posx2 = room2.pos.x + room2.pos.w/2;
@@ -267,12 +265,12 @@ fn main() -> Result<(), ()>{
     
     let mut position = Point{x:0, y:0};
     let mut moved = Move::None;
-    let mut curr_room = &empty_room;
+    let mut curr_room = &EMPTY_ROOM;
 
     'pos: for y in 0..ROOMS_Y {
         for x in 0..ROOMS_X {
             let room = &grid[y as usize][x as usize];
-            if *room != empty_room {
+            if *room != EMPTY_ROOM {
                 curr_room = room;
                 position = Point {
                     x: room.pos.x + 1,
@@ -281,7 +279,7 @@ fn main() -> Result<(), ()>{
             }
         }
     }
-    if *curr_room == empty_room {unreachable!("How did it not find anything???")}
+    if *curr_room == EMPTY_ROOM {unreachable!("How did it not find anything???")}
 
     // TODO: might switch up and down
     // TODO: simplify hallways
