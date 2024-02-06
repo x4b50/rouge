@@ -118,13 +118,13 @@ struct Point {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Stat {
+    NONE,
     HP,
     DEF,
     ATK,
     GOLD,
     EXP,
     __Count,
-    NONE,
 }
 
 // TODO: might get reed of kind/effect and leave 1
@@ -138,13 +138,13 @@ struct Item {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum ItemKind {
+    NONE,
     Healing,
     Armor,
     Weapon,
     Gold,
     EXP,
     __Count,
-    NONE,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -159,12 +159,12 @@ struct Enemy {
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 enum EnemyKind {
+    NONE,
     Zombie,
     Skeleton,
     Ghost,
     Ogre,
     __Count,
-    NONE,
 }
 
 struct Player {
@@ -195,11 +195,10 @@ impl Item {
     fn random() -> Item {
         let kind = unsafe {
             std::mem::transmute::<u8, ItemKind>
-                (rand::thread_rng().gen_range(0..ItemKind::__Count as u8))
+                (rand::thread_rng().gen_range(1..ItemKind::__Count as u8))
         };
         Item {
             hidden: random(),
-            // name: ITEM_NAMES[rand::thread_rng().gen_range(0..ITEM_NAMES.len())],
             kind,
             effect: match kind {
                 ItemKind::Healing => Stat::HP,
@@ -245,7 +244,7 @@ impl Enemy {
             hidden: random(),
             kind: unsafe {
                 std::mem::transmute
-                    (rand::thread_rng().gen_range(0..EnemyKind::__Count as u8))
+                    (rand::thread_rng().gen_range(1..EnemyKind::__Count as u8))
             },
             hp: rand::thread_rng().gen_range(3..10),
             def: rand::thread_rng().gen_range(3..10),
