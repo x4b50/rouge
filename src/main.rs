@@ -348,7 +348,7 @@ const CHAR_ENEMY_OGRE: char = 'O';
 
 // TODO: make a shop mechanic or sth to make gold usefull
 const ITEMS_MAX: u32 = MIN_ROOM_COUNT*3/4;
-const ITEMS_MIN: u32 = ITEMS_MAX/3;
+const ITEMS_MIN: u32 = ITEMS_MAX/2;
 const MONSTERS_MAX: u32 = MIN_ROOM_COUNT;
 const MONSTERS_MIN: u32 = MONSTERS_MAX/2;
 
@@ -395,6 +395,23 @@ fn main() -> Result<(), ()>{
             }
         }
     }
+    
+    let mut position = Point{x:0, y:0};
+    let mut moved = Move::NONE;
+    let mut curr_room = (usize::MAX, usize::MAX);
+
+    'pos: for y in 0..ROOMS_Y {
+        for x in 0..ROOMS_X {
+            let room = &grid[y as usize][x as usize];
+            if *room != EMPTY_ROOM {
+                curr_room = (y as usize, x as usize);
+                position = Point {
+                    x: room.pos.x + 1,
+                    y: room.pos.y + 1
+                }; break 'pos;
+            }
+        }
+    }
 
     // let contents = vec![Object::default();room_count as usize].into_boxed_slice();
     let mut contents: [[Vec<Object>; ROOMS_X as usize]; ROOMS_Y as usize] = Default::default();
@@ -421,7 +438,7 @@ fn main() -> Result<(), ()>{
             loop {
                 let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
                 let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
-                if grid[y][x] != EMPTY_ROOM {
+                if grid[y][x] != EMPTY_ROOM && curr_room.0 != y && curr_room.1 != x {
                     contents[y][x].push(Object {
                         x: rand::thread_rng().gen_range(1..grid[y][x].pos.w-1),
                         y: rand::thread_rng().gen_range(1..grid[y][x].pos.h-1),
@@ -438,6 +455,7 @@ fn main() -> Result<(), ()>{
             grid[y][x].contents = &contents[y as usize][x as usize];
         }
     }
+    let mut curr_room = &grid[curr_room.0][curr_room.1];
 
     // switch to the game screen
     execute!(stdout, EnterAlternateScreen).unwrap();
@@ -503,23 +521,6 @@ fn main() -> Result<(), ()>{
         }
     }
     stdout.flush().unwrap();
-    
-    let mut position = Point{x:0, y:0};
-    let mut moved = Move::NONE;
-    let mut curr_room = &EMPTY_ROOM;
-
-    'pos: for y in 0..ROOMS_Y {
-        for x in 0..ROOMS_X {
-            let room = &grid[y as usize][x as usize];
-            if *room != EMPTY_ROOM {
-                curr_room = room;
-                position = Point {
-                    x: room.pos.x + 1,
-                    y: room.pos.y + 1
-                }; break 'pos;
-            }
-        }
-    }
 
     // TODO: might switch up and down
     // TODO: simplify hallways
