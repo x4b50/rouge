@@ -68,26 +68,26 @@ macro_rules! queue_position_cleanup {
     };
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 struct Room<'a> {
     pos: Rect,
     contents: &'a [Object]
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 struct Object {
     x: u16,
     y: u16,
     content: Content
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum Content {
     Item(Item),
     Enemy(Enemy)
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 struct Hallway<'a> {
     entr: (Point, Point),
     rooms: (&'a Room<'a>, &'a Room<'a>)
@@ -160,10 +160,10 @@ struct Enemy {
 #[derive(Debug, PartialEq, Clone, Copy)]
 enum EnemyKind {
     NONE,
-    Zombie,
-    Skeleton,
     Ghost,
     Ogre,
+    Skeleton,
+    Zombie,
     __Count,
 }
 
@@ -185,6 +185,38 @@ fn queue_rect(stdout: &mut Stdout, rect: &Rect) {
                        MoveTo(rect.x+x, rect.y+y),
                        Print(CHAR_WALL)
                        ).unwrap();
+            }
+        }
+    }
+}
+
+fn queue_room(stdout: &mut Stdout, room: &Room) {
+    queue_rect(stdout, &room.pos);
+    for obj in room.contents {
+        queue!(stdout, MoveTo(room.pos.x+obj.x, room.pos.y+obj.y)).unwrap();
+        match obj.content {
+            Content::Item(item) => {
+                if item.hidden { queue!(stdout, Print(CHAR_HIDDEN)).unwrap() }
+                else {
+                    match item.kind {
+                        ItemKind::NONE => panic!("I don't think this should ever happen"),
+                        ItemKind::__Count => panic!("This should never happen"),
+                        _ => queue!(stdout, Print(CHAR_ITEM)).unwrap(),
+                    }
+                }
+            }
+            Content::Enemy(enemy) => {
+                if enemy.hidden { queue!(stdout, Print(CHAR_HIDDEN)).unwrap() }
+                else {
+                    match enemy.kind {
+                        EnemyKind::NONE => panic!("I don't think this should ever happen"),
+                        EnemyKind::__Count => panic!("This should never happen"),
+                        EnemyKind::Ghost => queue!(stdout, Print(CHAR_ENEMY_GHOST)).unwrap(),
+                        EnemyKind::Ogre => queue!(stdout, Print(CHAR_ENEMY_OGRE)).unwrap(),
+                        EnemyKind::Skeleton => queue!(stdout, Print(CHAR_ENEMY_SKELETON)).unwrap(),
+                        EnemyKind::Zombie => queue!(stdout, Print(CHAR_ENEMY_ZOMBIE)).unwrap(),
+                    }
+                }
             }
         }
     }
@@ -232,7 +264,7 @@ impl Default for Room<'static> {
                 x: 0, y: 0,
                 w: 0, h: 0,
             },
-            contents: &[EMPTY_OBJECT],
+            contents: &[],
         }
     }
 }
@@ -302,17 +334,17 @@ const HALLWAYS_SIZE: usize = ((ROOMS_X-1)*ROOMS_Y + ROOMS_X*(ROOMS_Y-1)) as usiz
 const EMPTY_OBJECT: Object = Object::const_default();
 const EMPTY_ROOM: Room = Room {
     pos: Rect {x:0, y:0, w:0, h:0},
-    contents: &[EMPTY_OBJECT],
+    contents: &[],
 };
 
 const CHAR_WALL: char = '#';
 const CHAR_PLAYER: char = '@';
-// const CHAR_HIDDEN: char = '?';
-// const CHAR_ITEM: char = 'I';
-// const CHAR_ENEMY_ZOMBIE: char = 'Z';
-// const CHAR_ENEMY_SKELETON: char = 'S';
-// const CHAR_ENEMY_GHOST: char = 'G';
-// const CHAR_ENEMY_OGRE: char = 'O';
+const CHAR_HIDDEN: char = '?';
+const CHAR_ITEM: char = 'I';
+const CHAR_ENEMY_ZOMBIE: char = 'Z';
+const CHAR_ENEMY_SKELETON: char = 'S';
+const CHAR_ENEMY_GHOST: char = 'G';
+const CHAR_ENEMY_OGRE: char = 'O';
 
 // TODO: make a shop mechanic or sth to make gold usefull
 const ITEMS_MAX: u32 = MIN_ROOM_COUNT*3/4;
@@ -335,7 +367,7 @@ fn main() -> Result<(), ()>{
     if height < 30 {exit!(stdout, "Height of terminal window should be at least 80 characters");}
     let height = height-2;
 
-    let mut grid: [[Room;ROOMS_X as usize];ROOMS_Y as usize] = Default::default();
+    let mut grid = [[Room::default();ROOMS_X as usize];ROOMS_Y as usize];
     let mut room_count = 0;
     while room_count < MIN_ROOM_COUNT {
         for (r, row) in (&mut grid).iter_mut().enumerate() {
@@ -343,8 +375,8 @@ fn main() -> Result<(), ()>{
                 if *column == EMPTY_ROOM && random() {
                     let r = r as u16;
                     let c = c as u16;
-                    let x = rand::thread_rng().gen_range(c*width/ROOMS_X..(c+1)*width/ROOMS_X);
-                    let y = rand::thread_rng().gen_range(r*height/ROOMS_Y..(r+1)*height/ROOMS_Y);
+                    let x = rand::thread_rng().gen_range(c*width/ROOMS_X+1..(c+1)*width/ROOMS_X);
+                    let y = rand::thread_rng().gen_range(r*height/ROOMS_Y+1..(r+1)*height/ROOMS_Y);
 
                     if (c+1)*width/ROOMS_X-x < 15 {continue};
                     if (r+1)*height/ROOMS_Y-y < 10 {continue};
@@ -364,6 +396,49 @@ fn main() -> Result<(), ()>{
         }
     }
 
+    // let contents = vec![Object::default();room_count as usize].into_boxed_slice();
+    let mut contents: [[Vec<Object>; ROOMS_X as usize]; ROOMS_Y as usize] = Default::default();
+
+    {
+        let items_cout = rand::thread_rng().gen_range(ITEMS_MIN..=ITEMS_MAX);
+        for _ in 0..items_cout {
+            loop {
+                let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
+                let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
+                if grid[y][x] != EMPTY_ROOM {
+                    contents[y][x].push(Object {
+                        x: rand::thread_rng().gen_range(1..grid[y][x].pos.w-1),
+                        y: rand::thread_rng().gen_range(1..grid[y][x].pos.h-1),
+                        content: Content::Item(Item::random())
+                    });
+                    break;
+                }
+            }
+        }
+
+        let enemies_count = rand::thread_rng().gen_range(MONSTERS_MIN..=MONSTERS_MAX);
+        for _ in 0..enemies_count {
+            loop {
+                let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
+                let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
+                if grid[y][x] != EMPTY_ROOM {
+                    contents[y][x].push(Object {
+                        x: rand::thread_rng().gen_range(1..grid[y][x].pos.w-1),
+                        y: rand::thread_rng().gen_range(1..grid[y][x].pos.h-1),
+                        content: Content::Enemy(Enemy::random())
+                    });
+                    break;
+                }
+            }
+        }
+    }
+
+    for y in 0..ROOMS_Y as usize {
+        for x in 0..ROOMS_X as usize {
+            grid[y][x].contents = &contents[y as usize][x as usize];
+        }
+    }
+
     // switch to the game screen
     execute!(stdout, EnterAlternateScreen).unwrap();
     terminal::enable_raw_mode().unwrap();
@@ -371,7 +446,7 @@ fn main() -> Result<(), ()>{
     for row in &grid {
         for column in row {
             if *column != EMPTY_ROOM {
-                queue_rect(&mut stdout, &column.pos);
+                queue_room(&mut stdout, &column);
             }
         }
     }
@@ -387,11 +462,11 @@ fn main() -> Result<(), ()>{
         for x in 0..ROOMS_X {
             let room = &grid[y as usize][x as usize];
             if *room != EMPTY_ROOM {
+                let posx1 = room.pos.x + room.pos.w-1;
+                let posy1 = room.pos.y + room.pos.h/2;
                 for x2 in x+1..ROOMS_X {
                     let room2 = &grid[y as usize][x2 as usize];
                     if *room2 != EMPTY_ROOM {
-                        let posx1 = room.pos.x + room.pos.w-1;
-                        let posy1 = room.pos.y + room.pos.h/2;
                         let posx2 = room2.pos.x;
                         let posy2 = room2.pos.y + room2.pos.h/2;
 
@@ -406,11 +481,11 @@ fn main() -> Result<(), ()>{
                     }
                 }
 
+                let posx1 = room.pos.x + room.pos.w/2;
+                let posy1 = room.pos.y + room.pos.h-1;
                 for y2 in y+1..ROOMS_Y {
                     let room2 = &grid[y2 as usize][x as usize];
                     if *room2 != EMPTY_ROOM {
-                        let posx1 = room.pos.x + room.pos.w/2;
-                        let posy1 = room.pos.y + room.pos.h-1;
                         let posx2 = room2.pos.x + room2.pos.w/2;
                         let posy2 = room2.pos.y;
 
@@ -428,17 +503,6 @@ fn main() -> Result<(), ()>{
         }
     }
     stdout.flush().unwrap();
-
-    let mut items =  [Item::default(); ITEMS_MAX as usize];
-    let items_cout = rand::thread_rng().gen_range(ITEMS_MIN..=ITEMS_MAX);
-    for i in 0..items_cout {items[i as usize] = Item::random()}
-
-    let mut enemies = [Enemy::default(); MONSTERS_MAX as usize];
-    let enemies_count = rand::thread_rng().gen_range(MONSTERS_MIN..=MONSTERS_MAX);
-    for i in 0..enemies_count {enemies[i as usize] = Enemy::random()}
-
-    // dprintln!(stdout, "items: {:#?}", items);
-    // dprintln!(stdout, "enemies: {:#?}", enemies);
     
     let mut position = Point{x:0, y:0};
     let mut moved = Move::NONE;
