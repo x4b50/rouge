@@ -193,32 +193,6 @@ pub mod macros {
     }
 
     #[macro_export]
-    macro_rules! add_hallway {
-        ($stdout:expr, $hs_pr:expr, $hs:expr, $r1:expr, $r2:expr, $count:expr, $x1:expr, $y1:expr, $x2:expr, $y2:expr) => {
-            // why tho
-            use crossterm::{style::{Attribute, SetAttribute, SetForegroundColor, Color, ResetColor, SetBackgroundColor}};
-            $hs_pr[$count-1] = true;
-            $hs[$count-1] = Hallway{
-                entr: [Point {x: $x1, y: $y1}, Point {x: $x2, y: $y2}],
-                rooms: [$r1, $r2]
-            };
-
-            queue!($stdout,
-                   SetAttribute(Attribute::Bold),
-                   SetBackgroundColor(Color::Cyan),
-                   SetForegroundColor(Color::Black),
-                   MoveTo($x1, $y1), Print(format!("{}", $count)),
-                   if $count > 9 {
-                       MoveTo($x2-1, $y2)
-                   } else {
-                       MoveTo($x2, $y2)
-                   }, Print(format!("{}", $count)),
-                   SetAttribute(Attribute::Reset),
-                   ResetColor).unwrap();
-        };
-    }
-
-    #[macro_export]
     macro_rules! queue_position {
         ($stdout:expr, $position:expr) => {
             queue!($stdout,

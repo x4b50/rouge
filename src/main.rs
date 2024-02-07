@@ -1,7 +1,7 @@
 use rouge::*;
 use core::panic;
 use std::{io::{stdout, Stdout, Write}, usize};
-use crossterm::{cursor::MoveTo, terminal::{self, EnterAlternateScreen, LeaveAlternateScreen}, queue, style::Print, execute, event::{self, Event, KeyCode}};
+use crossterm::{cursor::MoveTo, terminal::{self, EnterAlternateScreen, LeaveAlternateScreen}, queue, style::{Print, Attribute, SetAttribute, SetForegroundColor, Color, ResetColor, SetBackgroundColor}, execute, event::{self, Event, KeyCode}};
 use rand::{Rng, random};
 
 // TODO: organise this code
@@ -170,8 +170,8 @@ fn main() -> Result<(), ()>{
                         let posy2 = room2.pos.y + room2.pos.h/2;
 
                         doors_count += 1;
-                        add_hallway!(stdout,
-                                     hallways_present, hallways,
+                        add_hallway(&mut stdout,
+                                     &mut hallways_present, &mut hallways,
                                      room, room2,
                                      doors_count,
                                      posx1, posy1,
@@ -188,8 +188,8 @@ fn main() -> Result<(), ()>{
                         let posy2 = room2.pos.y;
 
                         doors_count += 1;
-                        add_hallway!(stdout,
-                                     hallways_present, hallways,
+                        add_hallway(&mut stdout,
+                                     &mut hallways_present, &mut hallways,
                                      room, room2,
                                      doors_count,
                                      posx1, posy1,
@@ -254,6 +254,31 @@ fn main() -> Result<(), ()>{
     execute!(stdout, LeaveAlternateScreen).unwrap();
     terminal::disable_raw_mode().unwrap();
     Ok(())
+}
+
+#[inline(always)]
+fn add_hallway<'a> (stdout: &mut Stdout, hs_pr: &mut [bool], hs: &mut [Hallway<'a>],
+                    r1: &'a Room, r2: &'a Room, count: usize,
+                    x1: u16, y1: u16, x2: u16, y2: u16)
+{
+    hs_pr[count-1] = true;
+    hs[count-1] = Hallway{
+        entr: [Point {x: x1, y: y1}, Point {x: x2, y: y2}],
+        rooms: [r1, r2]
+    };
+
+    queue!(stdout,
+           SetAttribute(Attribute::Bold),
+           SetBackgroundColor(Color::Cyan),
+           SetForegroundColor(Color::Black),
+           MoveTo(x1, y1), Print(format!("{}", count)),
+           if count > 9 {
+               MoveTo(x2-1, y2)
+           } else {
+               MoveTo(x2, y2)
+           }, Print(format!("{}", count)),
+           SetAttribute(Attribute::Reset),
+           ResetColor).unwrap();
 }
 
 // can be made better
