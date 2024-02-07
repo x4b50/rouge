@@ -16,6 +16,7 @@ const EMPTY_ROOM: Room = Room {
 };
 
 const CHAR_WALL: char = '#';
+const CHAR_FLOOR: char = '.';
 const CHAR_PLAYER: char = '@';
 const CHAR_HIDDEN: char = '?';
 const CHAR_ITEM: char = 'I';
@@ -289,6 +290,11 @@ fn queue_rect(stdout: &mut Stdout, rect: &Rect) {
                 queue!(stdout,
                        MoveTo(rect.x+x, rect.y+y),
                        Print(CHAR_WALL)
+                       ).unwrap();
+            } else {
+                queue!(stdout,
+                       MoveTo(rect.x+x, rect.y+y),
+                       Print(CHAR_FLOOR)
                        ).unwrap();
             }
         }

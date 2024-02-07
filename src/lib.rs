@@ -208,7 +208,7 @@ pub mod macros {
         ($stdout:expr, $position:expr) => {
             queue!($stdout,
                    MoveTo($position.x, $position.y),
-                   Print(" "),
+                   Print(CHAR_FLOOR),
                    ).unwrap();
         };
     }
