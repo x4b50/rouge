@@ -91,7 +91,7 @@ fn main() -> Result<(), ()>{
         }
     }
 
-    // TODO: chekc for content position collisions
+    // TODO: check for content position collisions
     let mut contents: [[Vec<Object>; ROOMS_X as usize]; ROOMS_Y as usize] = Default::default();
 
     let items_cout = rand::thread_rng().gen_range(ITEMS_MIN..=ITEMS_MAX);
@@ -146,6 +146,7 @@ fn main() -> Result<(), ()>{
     for row in &grid {
         for column in row {
             if let Some(room) = column {
+                queue_rect(&mut stdout, &room.pos);
                 queue_room(&mut stdout, room);
             }
         }
@@ -209,6 +210,13 @@ fn main() -> Result<(), ()>{
 
     loop {
         // rendering -----------------------------------------------------------
+        for row in &grid {
+            for column in row {
+                if let Some(room) = column {
+                    queue_room(&mut stdout, room);
+                }
+            }
+        }
         queue_menu(&mut stdout, &player, width, height);
         queue_position!(stdout, position);
         stdout.flush().unwrap();
@@ -263,7 +271,6 @@ fn queue_rect(stdout: &mut Stdout, rect: &Rect) {
 }
 
 fn queue_room(stdout: &mut Stdout, room: &Room) {
-    queue_rect(stdout, &room.pos);
     for obj in room.contents {
         queue!(stdout, MoveTo(room.pos.x+obj.x, room.pos.y+obj.y)).unwrap();
         match obj.content {

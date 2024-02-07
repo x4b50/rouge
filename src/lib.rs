@@ -241,7 +241,7 @@ pub mod macros {
 
     #[macro_export]
     macro_rules! check_move {
-        ($stdout:expr, $pos:expr, $croom:expr, $hws_p:expr, $hws:expr, $axis:tt, $sign:tt) => {
+        ($stdout:expr, $pos:expr, $croom:expr, $hs_p:expr, $hs:expr, $axis:tt, $sign:tt) => {
             let next_pos = match stringify!($axis) {
                 "x" => Point{x: $pos.x $sign 1, y: $pos.y},
                 "y" => Point{x: $pos.x, y: $pos.y $sign 1},
@@ -263,13 +263,13 @@ pub mod macros {
             }else {
                 let hw_idx = (0.5 $sign 0.5) as usize;
                 for i in 0..HALLWAYS_SIZE {
-                    if !$hws_p[i] {break}
+                    if !$hs_p[i] {break}
                     else {
-                        if next_pos == $hws[i].entr[1-hw_idx] {
+                        if next_pos == $hs[i].entr[1-hw_idx] {
                             queue_position_cleanup!($stdout, $pos);
-                            $pos = $hws[i].entr[hw_idx];
+                            $pos = $hs[i].entr[hw_idx];
                             $pos.$axis = $pos.$axis $sign 1;
-                            $croom = $hws[i].rooms[hw_idx];
+                            $croom = $hs[i].rooms[hw_idx];
                             break
                         }
                     }
