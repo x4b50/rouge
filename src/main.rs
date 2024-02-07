@@ -246,29 +246,6 @@ impl Item {
     }
 }
 
-impl Default for Item {
-    fn default() -> Self {
-        Item {
-            hidden: false,
-            kind: ItemKind::NONE,
-            effect: Stat::NONE,
-            value: 0,
-        }
-    }
-}
-
-impl Default for Room<'static> {
-    fn default() -> Self {
-        Room {
-            pos: Rect {
-                x: 0, y: 0,
-                w: 0, h: 0,
-            },
-            contents: &[],
-        }
-    }
-}
-
 // TODO: gen different stats based on type, balance a bit
 impl Enemy {
     fn random() -> Enemy {
@@ -288,50 +265,10 @@ impl Enemy {
     }
 }
 
-impl Default for Enemy {
-    fn default() -> Self {
-        Enemy {
-            hidden: false,
-            kind: EnemyKind::NONE,
-            hp: 0,
-            def: 0,
-            atk: 0,
-            loot: None,
-        }
-    }
-}
-
-impl Default for Object {
-    fn default() -> Self {
-        Object {
-            x: 0,
-            y: 0,
-            content: Content::Item(Item::default())
-        }
-    }
-}
-
-impl Object {
-    const fn const_default() -> Self {
-        Object {
-            x: 0,
-            y: 0,
-            // TODO: keep same as Item::default()
-            content: Content::Item(Item {
-                    hidden: false,
-                    kind: ItemKind::NONE,
-                    effect: Stat::NONE,
-                    value: 0,
-                })
-        }
-    }
-}
-
 const ROOMS_X: u16 = 4;
 const ROOMS_Y: u16 = 3;
 const MIN_ROOM_COUNT: u32 = 8;
 const HALLWAYS_SIZE: usize = ((ROOMS_X-1)*ROOMS_Y + ROOMS_X*(ROOMS_Y-1)) as usize;
-const EMPTY_OBJECT: Object = Object::const_default();
 const EMPTY_ROOM: Room = Room {
     pos: Rect {x:0, y:0, w:0, h:0},
     contents: &[],
@@ -388,7 +325,7 @@ fn main() -> Result<(), ()>{
                             x, y,
                             w, h,
                         },
-                        contents: &[EMPTY_OBJECT]
+                        contents: &[]
                     });
                     room_count += 1;
                 }
@@ -412,7 +349,6 @@ fn main() -> Result<(), ()>{
         }
     }
 
-    // let contents = vec![Object::default();room_count as usize].into_boxed_slice();
     let mut contents: [[Vec<Object>; ROOMS_X as usize]; ROOMS_Y as usize] = Default::default();
 
     {
