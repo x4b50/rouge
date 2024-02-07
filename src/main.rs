@@ -1,5 +1,5 @@
 use core::panic;
-use std::{io::{stdout, Write, Stdout}, usize};
+use std::{io::{stdout, Stdout, Write}, usize};
 use crossterm::{cursor::{MoveTo, MoveLeft}, terminal::{self, EnterAlternateScreen, LeaveAlternateScreen}, queue, style::Print, execute, event::{self, Event, KeyCode}, style::{Attribute, SetAttribute, SetForegroundColor, Color, ResetColor, SetBackgroundColor}};
 use rand::{Rng, random};
 
@@ -367,12 +367,12 @@ fn main() -> Result<(), ()>{
     if height < 30 {exit!(stdout, "Height of terminal window should be at least 80 characters");}
     let height = height-2;
 
-    let mut grid = [[Room::default();ROOMS_X as usize];ROOMS_Y as usize];
+    let mut grid = [[None;ROOMS_X as usize];ROOMS_Y as usize];
     let mut room_count = 0;
     while room_count < MIN_ROOM_COUNT {
         for (r, row) in (&mut grid).iter_mut().enumerate() {
             for (c, column) in row.iter_mut().enumerate() {
-                if *column == EMPTY_ROOM && random() {
+                if column.is_none() && random() {
                     let r = r as u16;
                     let c = c as u16;
                     let x = rand::thread_rng().gen_range(c*width/ROOMS_X+1..(c+1)*width/ROOMS_X);
@@ -383,13 +383,13 @@ fn main() -> Result<(), ()>{
                     let w = rand::thread_rng().gen_range(12..(c+1)*width/ROOMS_X-x);
                     let h = rand::thread_rng().gen_range(8..(r+1)*height/ROOMS_Y-y);
 
-                    *column = Room{
+                    *column = Some(Room{
                         pos: Rect {
                             x, y,
                             w, h,
                         },
                         contents: &[EMPTY_OBJECT]
-                    };
+                    });
                     room_count += 1;
                 }
             }
@@ -398,13 +398,12 @@ fn main() -> Result<(), ()>{
     
     let mut position = Point{x:0, y:0};
     let mut moved = Move::NONE;
-    let mut curr_room = (usize::MAX, usize::MAX);
+    let mut c_room = Point {x: u16::MAX, y: u16::MAX};
 
     'pos: for y in 0..ROOMS_Y {
         for x in 0..ROOMS_X {
-            let room = &grid[y as usize][x as usize];
-            if *room != EMPTY_ROOM {
-                curr_room = (y as usize, x as usize);
+            if let Some(room) = grid[y as usize][x as usize] {
+                c_room = Point { x, y };
                 position = Point {
                     x: room.pos.x + 1,
                     y: room.pos.y + 1
@@ -422,10 +421,10 @@ fn main() -> Result<(), ()>{
             loop {
                 let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
                 let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
-                if grid[y][x] != EMPTY_ROOM {
+                if let Some(room) = grid[y][x] {
                     contents[y][x].push(Object {
-                        x: rand::thread_rng().gen_range(1..grid[y][x].pos.w-1),
-                        y: rand::thread_rng().gen_range(1..grid[y][x].pos.h-1),
+                        x: rand::thread_rng().gen_range(1..room.pos.w-1),
+                        y: rand::thread_rng().gen_range(1..room.pos.h-1),
                         content: Content::Item(Item::random())
                     });
                     break;
@@ -438,13 +437,15 @@ fn main() -> Result<(), ()>{
             loop {
                 let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
                 let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
-                if grid[y][x] != EMPTY_ROOM && curr_room.0 != y && curr_room.1 != x {
-                    contents[y][x].push(Object {
-                        x: rand::thread_rng().gen_range(1..grid[y][x].pos.w-1),
-                        y: rand::thread_rng().gen_range(1..grid[y][x].pos.h-1),
-                        content: Content::Enemy(Enemy::random())
-                    });
-                    break;
+                if let Some(room) = grid[y][x] {
+                    if c_room.y != y as u16 && c_room.x != x as u16 {
+                        contents[y][x].push(Object {
+                            x: rand::thread_rng().gen_range(1..room.pos.w-1),
+                            y: rand::thread_rng().gen_range(1..room.pos.h-1),
+                            content: Content::Enemy(Enemy::random())
+                        });
+                        break;
+                    }
                 }
             }
         }
@@ -452,10 +453,14 @@ fn main() -> Result<(), ()>{
 
     for y in 0..ROOMS_Y as usize {
         for x in 0..ROOMS_X as usize {
-            grid[y][x].contents = &contents[y as usize][x as usize];
+            if let Some(room) = &mut grid[y][x] {room.contents = &contents[y][x];}
         }
     }
-    let mut curr_room = &grid[curr_room.0][curr_room.1];
+
+    let mut curr_room;
+    if let Some(room) = &grid[c_room.y as usize][c_room.x as usize] {
+        curr_room = room;
+    } else {unreachable!("there should be a staring room")}
 
     // switch to the game screen
     execute!(stdout, EnterAlternateScreen).unwrap();
@@ -463,8 +468,8 @@ fn main() -> Result<(), ()>{
 
     for row in &grid {
         for column in row {
-            if *column != EMPTY_ROOM {
-                queue_room(&mut stdout, &column);
+            if let Some(room) = column {
+                queue_room(&mut stdout, room);
             }
         }
     }
@@ -476,15 +481,13 @@ fn main() -> Result<(), ()>{
     };HALLWAYS_SIZE];
 
     let mut doors_count = 0;
-    for y in 0..ROOMS_Y {
-        for x in 0..ROOMS_X {
-            let room = &grid[y as usize][x as usize];
-            if *room != EMPTY_ROOM {
+    for y in 0..ROOMS_Y as usize {
+        for x in 0..ROOMS_X as usize {
+            if let Some(room) = &grid[y][x] {
                 let posx1 = room.pos.x + room.pos.w-1;
                 let posy1 = room.pos.y + room.pos.h/2;
-                for x2 in x+1..ROOMS_X {
-                    let room2 = &grid[y as usize][x2 as usize];
-                    if *room2 != EMPTY_ROOM {
+                for x2 in x+1..ROOMS_X as usize {
+                    if let Some(room2) = &grid[y][x2] {
                         let posx2 = room2.pos.x;
                         let posy2 = room2.pos.y + room2.pos.h/2;
 
@@ -501,9 +504,8 @@ fn main() -> Result<(), ()>{
 
                 let posx1 = room.pos.x + room.pos.w/2;
                 let posy1 = room.pos.y + room.pos.h-1;
-                for y2 in y+1..ROOMS_Y {
-                    let room2 = &grid[y2 as usize][x as usize];
-                    if *room2 != EMPTY_ROOM {
+                for y2 in y+1..ROOMS_Y as usize {
+                    if let Some(room2) = &grid[y2][x] {
                         let posx2 = room2.pos.x + room2.pos.w/2;
                         let posy2 = room2.pos.y;
 
