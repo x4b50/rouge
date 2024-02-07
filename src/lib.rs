@@ -242,39 +242,39 @@ pub mod macros {
     #[macro_export]
     macro_rules! check_move {
         ($stdout:expr, $pos:expr, $croom:expr, $hws_p:expr, $hws:expr, $axis:tt, $sign:tt) => {
-                let next_pos = match stringify!($axis) {
-                    "x" => Point{x: $pos.x $sign 1, y: $pos.y},
-                    "y" => Point{x: $pos.x, y: $pos.y $sign 1},
-                    _ => panic!("invalid axis, should be `x` or `y`")
+            let next_pos = match stringify!($axis) {
+                "x" => Point{x: $pos.x $sign 1, y: $pos.y},
+                "y" => Point{x: $pos.x, y: $pos.y $sign 1},
+                _ => panic!("invalid axis, should be `x` or `y`")
                     // _ => compile_error!("only accepts `x` and `y`")
-                };
+            };
 
-                let cond = match (stringify!($axis), stringify!($sign)) {
-                    ("x", "+") => next_pos.x < $croom.pos.x + $croom.pos.w-1,
-                    ("x", "-") => next_pos.x > $croom.pos.x,
-                    ("y", "+") => next_pos.y < $croom.pos.y + $croom.pos.h-1,
-                    ("y", "-") => next_pos.y > $croom.pos.y,
-                    _ => panic!("direction signifier should be either `+` or `-`")
-                };
+            let cond = match (stringify!($axis), stringify!($sign)) {
+                ("x", "+") => next_pos.x < $croom.pos.x + $croom.pos.w-1,
+                ("x", "-") => next_pos.x > $croom.pos.x,
+                ("y", "+") => next_pos.y < $croom.pos.y + $croom.pos.h-1,
+                ("y", "-") => next_pos.y > $croom.pos.y,
+                _ => panic!("direction signifier should be either `+` or `-`")
+            };
 
-                if cond {
-                    queue_position_cleanup!($stdout, $pos);
-                    $pos.$axis = $pos.$axis $sign 1;
-                }else {
-                    let hw_idx = (0.5 $sign 0.5) as usize;
-                    for i in 0..HALLWAYS_SIZE {
-                        if !$hws_p[i] {break}
-                        else {
-                            if next_pos == $hws[i].entr[1-hw_idx] {
-                                queue_position_cleanup!($stdout, $pos);
-                                $pos = $hws[i].entr[hw_idx];
-                                $pos.$axis = $pos.$axis $sign 1;
-                                $croom = $hws[i].rooms[hw_idx];
-                                break
-                            }
+            if cond {
+                queue_position_cleanup!($stdout, $pos);
+                $pos.$axis = $pos.$axis $sign 1;
+            }else {
+                let hw_idx = (0.5 $sign 0.5) as usize;
+                for i in 0..HALLWAYS_SIZE {
+                    if !$hws_p[i] {break}
+                    else {
+                        if next_pos == $hws[i].entr[1-hw_idx] {
+                            queue_position_cleanup!($stdout, $pos);
+                            $pos = $hws[i].entr[hw_idx];
+                            $pos.$axis = $pos.$axis $sign 1;
+                            $croom = $hws[i].rooms[hw_idx];
+                            break
                         }
                     }
                 }
+            }
         };
     }
 

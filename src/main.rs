@@ -201,18 +201,13 @@ fn main() -> Result<(), ()>{
     }
     stdout.flush().unwrap();
 
-    // TODO: might switch up and down
-    loop {
-        // logic ---------------------------------------------------------------
-        match moved {
-            Move::NONE => {}
-            Move::R => {check_move!(stdout, position, curr_room, hallways_present, hallways, x, +);}
-            Move::L => {check_move!(stdout, position, curr_room, hallways_present, hallways, x, -);}
-            Move::D => {check_move!(stdout, position, curr_room, hallways_present, hallways, y, +);}
-            Move::U => {check_move!(stdout, position, curr_room, hallways_present, hallways, y, -);}
-        }
-        // logic ---------------------------------------------------------------
+    macro_rules! movement {
+        ($axis:tt, $sign:tt) => {
+            check_move!(stdout, position, curr_room, hallways_present, hallways, $axis, $sign);
+        };
+    }
 
+    loop {
         // rendering -----------------------------------------------------------
         queue_menu(&mut stdout, &player, width, height);
         queue_position!(stdout, position);
@@ -236,6 +231,16 @@ fn main() -> Result<(), ()>{
             }
         }
         // events --------------------------------------------------------------
+
+        // logic ---------------------------------------------------------------
+        match moved {
+            Move::NONE => {}
+            Move::R => {movement!(x, +);}
+            Move::L => {movement!(x, -);}
+            Move::D => {movement!(y, +);}
+            Move::U => {movement!(y, -);}
+        }
+        // logic ---------------------------------------------------------------
     }
 
     execute!(stdout, LeaveAlternateScreen).unwrap();
