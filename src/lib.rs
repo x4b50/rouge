@@ -3,115 +3,6 @@ use rand::{Rng, random};
 use std::io::Stdout;
 use crossterm::{cursor::{MoveTo, MoveRight}, queue, style::Print};
 
-pub mod macros {
-    // TODO: work on that to not fuck up the display
-    #[macro_export]
-    #[allow(unused_macros)]
-    macro_rules! dprintln {
-        ($stdout:expr, $( $msg:expr ),*) => {
-            execute!($stdout, LeaveAlternateScreen).unwrap();
-            terminal::disable_raw_mode().unwrap();
-            println!($( $msg, )*);
-            terminal::enable_raw_mode().unwrap();
-            execute!($stdout, MoveLeft(u16::MAX)).unwrap();
-            execute!($stdout, EnterAlternateScreen).unwrap();
-        };
-    }
-
-    #[macro_export]
-    macro_rules! exit {
-        ($stdout:expr, $msg:expr) => {
-            execute!($stdout, LeaveAlternateScreen).unwrap();
-            eprintln!($msg);
-            return Err(());
-        };
-    }
-
-    #[macro_export]
-    macro_rules! add_hallway {
-        ($stdout:expr, $hs_pr:expr, $hs:expr, $r1:expr, $r2:expr, $count:expr, $x1:expr, $y1:expr, $x2:expr, $y2:expr) => {
-            // why tho
-            use crossterm::{style::{Attribute, SetAttribute, SetForegroundColor, Color, ResetColor, SetBackgroundColor}};
-            $hs_pr[$count-1] = true;
-            $hs[$count-1] = Hallway{
-                entr: (Point {x: $x1, y: $y1}, Point {x: $x2, y: $y2}),
-                rooms: ($r1, $r2)
-            };
-
-            queue!($stdout,
-                   SetAttribute(Attribute::Bold),
-                   SetBackgroundColor(Color::Cyan),
-                   SetForegroundColor(Color::Black),
-                   MoveTo($x1, $y1), Print(format!("{}", $count)),
-                   if $count > 9 {
-                       MoveTo($x2-1, $y2)
-                   } else {
-                       MoveTo($x2, $y2)
-                   }, Print(format!("{}", $count)),
-                   SetAttribute(Attribute::Reset),
-                   ResetColor).unwrap();
-        };
-    }
-
-    #[macro_export]
-    macro_rules! queue_position {
-        ($stdout:expr, $position:expr) => {
-            queue!($stdout,
-                   MoveTo($position.x, $position.y),
-                   Print(CHAR_PLAYER),
-                   MoveTo($position.x, $position.y)
-                  ).unwrap();
-        };
-    }
-
-    #[macro_export]
-    macro_rules! queue_position_cleanup {
-        ($stdout:expr, $position:expr) => {
-            queue!($stdout,
-                   MoveTo($position.x, $position.y),
-                   Print(" "),
-                   ).unwrap();
-        };
-    }
-
-    #[macro_export]
-    macro_rules! replace_expr {
-        ($_t:tt $sub:expr) => {$sub};
-    }
-
-
-    // magic
-    // https://danielkeep.github.io/tlborm/book/blk-counting.html
-    // https://stackoverflow.com/questions/34304593/counting-length-of-repetition-in-macro
-    // https://stackoverflow.com/questions/37140768/how-to-get-struct-field-names-in-rust
-    #[macro_export]
-    macro_rules! gen_menu {
-        (struct $name:ident {$($field:ident: $type:ty),+ $(,)+ }) => {
-            pub struct $name {
-                pub $($field: $type),*
-            }
-
-            pub fn queue_menu(stdout: &mut Stdout, player: &$name, width: u16, height: u16) {
-                let mut w = 0;
-                $(w += stringify!($field).len() as u16 +4;)*
-                let pads = {<[()]>::len(&[$(replace_expr!($field ())),*])} as u16 + 1;
-                let padding = (width-w)/pads;
-                queue!(stdout,
-                       MoveTo(0, height),
-                       Print("-".repeat(width.into())),
-                       MoveTo(0, height+1),
-                       $(
-                           MoveRight(padding),
-                           Print(stringify!($field)),
-                           Print(": "),
-                           Print(player.$field),
-                        )*
-                      ).unwrap();
-            }
-        };
-    }
-}
-
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Room<'a> {
     pub pos: Rect,
@@ -133,8 +24,8 @@ pub enum Content {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Hallway<'a> {
-    pub entr: (Point, Point),
-    pub rooms: (&'a Room<'a>, &'a Room<'a>)
+    pub entr: [Point;2],
+    pub rooms: [&'a Room<'a>;2]
 }
 
 pub enum Move {
@@ -274,5 +165,153 @@ impl Enemy {
                 Some(Item::random())
             } else {None}
         }
+    }
+}
+
+pub mod macros {
+    // TODO: work on that to not fuck up the display
+    #[macro_export]
+    #[allow(unused_macros)]
+    macro_rules! dprintln {
+        ($stdout:expr, $( $msg:expr ),*) => {
+            execute!($stdout, LeaveAlternateScreen).unwrap();
+            terminal::disable_raw_mode().unwrap();
+            println!($( $msg, )*);
+            terminal::enable_raw_mode().unwrap();
+            execute!($stdout, MoveLeft(u16::MAX)).unwrap();
+            execute!($stdout, EnterAlternateScreen).unwrap();
+        };
+    }
+
+    #[macro_export]
+    macro_rules! exit {
+        ($stdout:expr, $msg:expr) => {
+            execute!($stdout, LeaveAlternateScreen).unwrap();
+            eprintln!($msg);
+            return Err(());
+        };
+    }
+
+    #[macro_export]
+    macro_rules! add_hallway {
+        ($stdout:expr, $hs_pr:expr, $hs:expr, $r1:expr, $r2:expr, $count:expr, $x1:expr, $y1:expr, $x2:expr, $y2:expr) => {
+            // why tho
+            use crossterm::{style::{Attribute, SetAttribute, SetForegroundColor, Color, ResetColor, SetBackgroundColor}};
+            $hs_pr[$count-1] = true;
+            $hs[$count-1] = Hallway{
+                entr: [Point {x: $x1, y: $y1}, Point {x: $x2, y: $y2}],
+                rooms: [$r1, $r2]
+            };
+
+            queue!($stdout,
+                   SetAttribute(Attribute::Bold),
+                   SetBackgroundColor(Color::Cyan),
+                   SetForegroundColor(Color::Black),
+                   MoveTo($x1, $y1), Print(format!("{}", $count)),
+                   if $count > 9 {
+                       MoveTo($x2-1, $y2)
+                   } else {
+                       MoveTo($x2, $y2)
+                   }, Print(format!("{}", $count)),
+                   SetAttribute(Attribute::Reset),
+                   ResetColor).unwrap();
+        };
+    }
+
+    #[macro_export]
+    macro_rules! queue_position {
+        ($stdout:expr, $position:expr) => {
+            queue!($stdout,
+                   MoveTo($position.x, $position.y),
+                   Print(CHAR_PLAYER),
+                   MoveTo($position.x, $position.y)
+                  ).unwrap();
+        };
+    }
+
+    #[macro_export]
+    macro_rules! queue_position_cleanup {
+        ($stdout:expr, $position:expr) => {
+            queue!($stdout,
+                   MoveTo($position.x, $position.y),
+                   Print(" "),
+                   ).unwrap();
+        };
+    }
+
+    #[macro_export]
+    macro_rules! check_move {
+        ($stdout:expr, $pos:expr, $croom:expr, $hws_p:expr, $hws:expr, $axis:tt, $sign:tt) => {
+                let next_pos = match stringify!($axis) {
+                    "x" => Point{x: $pos.x $sign 1, y: $pos.y},
+                    "y" => Point{x: $pos.x, y: $pos.y $sign 1},
+                    _ => panic!("invalid axis, should be `x` or `y`")
+                    // _ => compile_error!("only accepts `x` and `y`")
+                };
+
+                let cond = match (stringify!($axis), stringify!($sign)) {
+                    ("x", "+") => next_pos.x < $croom.pos.x + $croom.pos.w-1,
+                    ("x", "-") => next_pos.x > $croom.pos.x,
+                    ("y", "+") => next_pos.y < $croom.pos.y + $croom.pos.h-1,
+                    ("y", "-") => next_pos.y > $croom.pos.y,
+                    _ => panic!("direction signifier should be either `+` or `-`")
+                };
+
+                if cond {
+                    queue_position_cleanup!($stdout, $pos);
+                    $pos.$axis = $pos.$axis $sign 1;
+                }else {
+                    let hw_idx = (0.5 $sign 0.5) as usize;
+                    for i in 0..HALLWAYS_SIZE {
+                        if !$hws_p[i] {break}
+                        else {
+                            if next_pos == $hws[i].entr[1-hw_idx] {
+                                queue_position_cleanup!($stdout, $pos);
+                                $pos = $hws[i].entr[hw_idx];
+                                $pos.$axis = $pos.$axis $sign 1;
+                                $croom = $hws[i].rooms[hw_idx];
+                                break
+                            }
+                        }
+                    }
+                }
+        };
+    }
+
+    #[macro_export]
+    macro_rules! replace_expr {
+        ($_t:tt $sub:expr) => {$sub};
+    }
+
+
+    // magic
+    // https://danielkeep.github.io/tlborm/book/blk-counting.html
+    // https://stackoverflow.com/questions/34304593/counting-length-of-repetition-in-macro
+    // https://stackoverflow.com/questions/37140768/how-to-get-struct-field-names-in-rust
+    #[macro_export]
+    macro_rules! gen_menu {
+        (struct $name:ident {$($field:ident: $type:ty),+ $(,)* }) => {
+            pub struct $name {
+                pub $($field: $type),*
+            }
+
+            pub fn queue_menu(stdout: &mut Stdout, player: &$name, width: u16, height: u16) {
+                let mut w = 0;
+                $(w += stringify!($field).len() as u16 +4;)*
+                let pads = {<[()]>::len(&[$(replace_expr!($field ())),*])} as u16 + 1;
+                let padding = (width-w)/pads;
+                queue!(stdout,
+                       MoveTo(0, height),
+                       Print("-".repeat(width.into())),
+                       MoveTo(0, height+1),
+                       $(
+                           MoveRight(padding),
+                           Print(stringify!($field)),
+                           Print(": "),
+                           Print(player.$field),
+                        )*
+                      ).unwrap();
+            }
+        };
     }
 }

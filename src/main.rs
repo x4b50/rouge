@@ -153,8 +153,8 @@ fn main() -> Result<(), ()>{
 
     let mut hallways_present =  [false; HALLWAYS_SIZE];
     let mut hallways = [Hallway{
-        entr: (Point {x:0, y:0}, Point {x:0, y:0}),
-        rooms: (&EMPTY_ROOM, &EMPTY_ROOM)
+        entr: [Point {x:0, y:0};2],
+        rooms: [&EMPTY_ROOM;2]
     };HALLWAYS_SIZE];
 
     let mut doors_count = 0;
@@ -202,87 +202,14 @@ fn main() -> Result<(), ()>{
     stdout.flush().unwrap();
 
     // TODO: might switch up and down
-    // TODO: simplify hallways
     loop {
         // logic ---------------------------------------------------------------
         match moved {
             Move::NONE => {}
-            Move::R => {
-                let next_pos = Point{x: position.x+1, y: position.y};
-                if next_pos.x < curr_room.pos.x + curr_room.pos.w-1 {
-                    queue_position_cleanup!(stdout, position);
-                    position.x += 1;
-                }else {
-                    for i in 0..HALLWAYS_SIZE {
-                        if !hallways_present[i] {break}
-                        else {
-                            if next_pos == hallways[i].entr.0 {
-                                queue_position_cleanup!(stdout, position);
-                                position = hallways[i].entr.1;
-                                position.x += 1;
-                                curr_room = hallways[i].rooms.1;
-                                break
-                            }
-                        }
-                    }
-                }}
-            Move::L => {
-                let next_pos = Point{x: position.x-1, y: position.y};
-                if next_pos.x > curr_room.pos.x {
-                    queue_position_cleanup!(stdout, position);
-                    position.x -= 1;
-                }else {
-                    for i in 0..HALLWAYS_SIZE {
-                        if !hallways_present[i] {break}
-                        else {
-                            if next_pos == hallways[i].entr.1 {
-                                queue_position_cleanup!(stdout, position);
-                                position = hallways[i].entr.0;
-                                position.x -= 1;
-                                curr_room = hallways[i].rooms.0;
-                                break
-                            }
-                        }
-                    }
-                }}
-            Move::U => {
-                let next_pos = Point{x: position.x, y: position.y-1};
-                if next_pos.y > curr_room.pos.y {
-                    queue_position_cleanup!(stdout, position);
-                    position.y -= 1;
-                }else {
-                    for i in 0..HALLWAYS_SIZE {
-                        if !hallways_present[i] {break}
-                        else {
-                            if next_pos == hallways[i].entr.1 {
-                                queue_position_cleanup!(stdout, position);
-                                position = hallways[i].entr.0;
-                                position.y -= 1;
-                                curr_room = hallways[i].rooms.0;
-                                break
-                            }
-                        }
-                    }
-                }}
-            Move::D => {
-                let next_pos = Point{x: position.x, y: position.y+1};
-                if next_pos.y < curr_room.pos.y + curr_room.pos.h-1 {
-                    queue_position_cleanup!(stdout, position);
-                    position.y += 1;
-                }else {
-                    for i in 0..HALLWAYS_SIZE {
-                        if !hallways_present[i] {break}
-                        else {
-                            if next_pos == hallways[i].entr.0 {
-                                queue_position_cleanup!(stdout, position);
-                                position = hallways[i].entr.1;
-                                position.y += 1;
-                                curr_room = hallways[i].rooms.1;
-                                break
-                            }
-                        }
-                    }
-                }}
+            Move::R => {check_move!(stdout, position, curr_room, hallways_present, hallways, x, +);}
+            Move::L => {check_move!(stdout, position, curr_room, hallways_present, hallways, x, -);}
+            Move::D => {check_move!(stdout, position, curr_room, hallways_present, hallways, y, +);}
+            Move::U => {check_move!(stdout, position, curr_room, hallways_present, hallways, y, -);}
         }
         // logic ---------------------------------------------------------------
 
