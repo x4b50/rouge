@@ -1,269 +1,10 @@
+use rouge::*;
 use core::panic;
 use std::{io::{stdout, Stdout, Write}, usize};
-use crossterm::{cursor::{MoveTo, MoveLeft}, terminal::{self, EnterAlternateScreen, LeaveAlternateScreen}, queue, style::Print, execute, event::{self, Event, KeyCode}, style::{Attribute, SetAttribute, SetForegroundColor, Color, ResetColor, SetBackgroundColor}};
+use crossterm::{cursor::MoveTo, terminal::{self, EnterAlternateScreen, LeaveAlternateScreen}, queue, style::Print, execute, event::{self, Event, KeyCode}};
 use rand::{Rng, random};
 
 // TODO: organise this code
-
-// TODO: work on that to not fuck up the display
-#[allow(unused_macros)]
-macro_rules! dprintln {
-    ($stdout:expr, $( $msg:expr ),*) => {
-        execute!($stdout, LeaveAlternateScreen).unwrap();
-        terminal::disable_raw_mode().unwrap();
-        println!($( $msg, )*);
-        terminal::enable_raw_mode().unwrap();
-        execute!($stdout, MoveLeft(u16::MAX)).unwrap();
-        execute!($stdout, EnterAlternateScreen).unwrap();
-    };
-}
-
-macro_rules! exit {
-    ($stdout:expr, $msg:expr) => {
-        execute!($stdout, LeaveAlternateScreen).unwrap();
-        eprintln!($msg);
-        return Err(());
-    };
-}
-
-macro_rules! add_hallway {
-    ($stdout:expr, $hs_pr:expr, $hs:expr, $r1:expr, $r2:expr, $count:expr, $x1:expr, $y1:expr, $x2:expr, $y2:expr) => {
-        $hs_pr[$count-1] = true;
-        $hs[$count-1] = Hallway{
-            entr: (Point {x: $x1, y: $y1}, Point {x: $x2, y: $y2}),
-            rooms: ($r1, $r2)
-        };
-
-        queue!($stdout,
-               SetAttribute(Attribute::Bold),
-               SetBackgroundColor(Color::Cyan),
-               SetForegroundColor(Color::Black),
-               MoveTo($x1, $y1), Print(format!("{}", $count)),
-               if $count > 9 {
-                   MoveTo($x2-1, $y2)
-               } else {
-                   MoveTo($x2, $y2)
-               }, Print(format!("{}", $count)),
-               SetAttribute(Attribute::Reset),
-               ResetColor).unwrap();
-    };
-}
-
-macro_rules! queue_position {
-    ($stdout:expr, $position:expr) => {
-        queue!($stdout,
-               MoveTo($position.x, $position.y),
-               Print(CHAR_PLAYER),
-               MoveTo($position.x, $position.y)
-              ).unwrap();
-    };
-}
-
-macro_rules! queue_position_cleanup {
-    ($stdout:expr, $position:expr) => {
-        queue!($stdout,
-               MoveTo($position.x, $position.y),
-               Print(" "),
-              ).unwrap();
-    };
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-struct Room<'a> {
-    pos: Rect,
-    contents: &'a [Object]
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-struct Object {
-    x: u16,
-    y: u16,
-    content: Content
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-enum Content {
-    Item(Item),
-    Enemy(Enemy)
-}
-
-#[derive(Debug, Clone, Copy)]
-struct Hallway<'a> {
-    entr: (Point, Point),
-    rooms: (&'a Room<'a>, &'a Room<'a>)
-}
-
-enum Move {
-    NONE,
-    R,
-    U,
-    D,
-    L,
-    // ...
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-struct Rect {
-    x: u16,
-    y: u16,
-    w: u16,
-    h: u16
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Point {
-    x: u16,
-    y: u16
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum Stat {
-    NONE,
-    HP,
-    DEF,
-    ATK,
-    GOLD,
-    EXP,
-    __Count,
-}
-
-// TODO: might get reed of kind/effect and leave 1
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Item {
-    hidden: bool,
-    kind: ItemKind,
-    effect: Stat,
-    value: i32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum ItemKind {
-    NONE,
-    Healing,
-    Armor,
-    Weapon,
-    Gold,
-    EXP,
-    __Count,
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-struct Enemy {
-    hidden: bool,
-    kind: EnemyKind,
-    hp: i32,
-    def: i32,
-    atk: i32,
-    loot: Option<Item>,
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-enum EnemyKind {
-    NONE,
-    Ghost,
-    Ogre,
-    Skeleton,
-    Zombie,
-    __Count,
-}
-
-struct Player {
-    hp: i32,
-    def: i32,
-    atk: i32,
-    gold: i32,
-    exp: i32,
-    lvl: i32,
-}
-
-// can be made better
-fn queue_rect(stdout: &mut Stdout, rect: &Rect) {
-    for y in 0..rect.h{
-        for x in 0..rect.w {
-            if x == 0 || x == rect.w-1 || y == 0 || y == rect.h-1 {
-                queue!(stdout,
-                       MoveTo(rect.x+x, rect.y+y),
-                       Print(CHAR_WALL)
-                       ).unwrap();
-            }
-        }
-    }
-}
-
-fn queue_room(stdout: &mut Stdout, room: &Room) {
-    queue_rect(stdout, &room.pos);
-    for obj in room.contents {
-        queue!(stdout, MoveTo(room.pos.x+obj.x, room.pos.y+obj.y)).unwrap();
-        match obj.content {
-            Content::Item(item) => {
-                if item.hidden { queue!(stdout, Print(CHAR_HIDDEN)).unwrap() }
-                else {
-                    match item.kind {
-                        ItemKind::NONE => panic!("I don't think this should ever happen"),
-                        ItemKind::__Count => panic!("This should never happen"),
-                        _ => queue!(stdout, Print(CHAR_ITEM)).unwrap(),
-                    }
-                }
-            }
-            Content::Enemy(enemy) => {
-                if enemy.hidden { queue!(stdout, Print(CHAR_HIDDEN)).unwrap() }
-                else {
-                    match enemy.kind {
-                        EnemyKind::NONE => panic!("I don't think this should ever happen"),
-                        EnemyKind::__Count => panic!("This should never happen"),
-                        EnemyKind::Ghost => queue!(stdout, Print(CHAR_ENEMY_GHOST)).unwrap(),
-                        EnemyKind::Ogre => queue!(stdout, Print(CHAR_ENEMY_OGRE)).unwrap(),
-                        EnemyKind::Skeleton => queue!(stdout, Print(CHAR_ENEMY_SKELETON)).unwrap(),
-                        EnemyKind::Zombie => queue!(stdout, Print(CHAR_ENEMY_ZOMBIE)).unwrap(),
-                    }
-                }
-            }
-        }
-    }
-}
-
-// TODO: different level items
-impl Item {
-    fn random() -> Item {
-        let kind = unsafe {
-            std::mem::transmute::<u8, ItemKind>
-                (rand::thread_rng().gen_range(1..ItemKind::__Count as u8))
-        };
-        Item {
-            hidden: random(),
-            kind,
-            effect: match kind {
-                ItemKind::Healing => Stat::HP,
-                ItemKind::Armor => Stat::DEF,
-                ItemKind::Weapon => Stat::ATK,
-                ItemKind::Gold => Stat::GOLD,
-                ItemKind::EXP => Stat::EXP,
-                ItemKind::__Count => panic!("`Item::random()` should not be able to generate kind 'ItemKind::__Count`'"),
-                ItemKind::NONE => panic!("`Item::random()` should not be able to generate kind 'ItemKind::NONE`'"),
-            },
-            value: rand::thread_rng().gen_range(1..10)
-        }
-    }
-}
-
-// TODO: gen different stats based on type, balance a bit
-impl Enemy {
-    fn random() -> Enemy {
-        Enemy {
-            hidden: random(),
-            kind: unsafe {
-                std::mem::transmute
-                    (rand::thread_rng().gen_range(1..EnemyKind::__Count as u8))
-            },
-            hp: rand::thread_rng().gen_range(3..10),
-            def: rand::thread_rng().gen_range(3..10),
-            atk: rand::thread_rng().gen_range(3..10),
-            loot: if random() && random() {
-                Some(Item::random())
-            } else {None}
-        }
-    }
-}
 
 const ROOMS_X: u16 = 4;
 const ROOMS_Y: u16 = 3;
@@ -349,39 +90,38 @@ fn main() -> Result<(), ()>{
         }
     }
 
+    // TODO: chekc for content position collisions
     let mut contents: [[Vec<Object>; ROOMS_X as usize]; ROOMS_Y as usize] = Default::default();
 
-    {
-        let items_cout = rand::thread_rng().gen_range(ITEMS_MIN..=ITEMS_MAX);
-        for _ in 0..items_cout {
-            loop {
-                let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
-                let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
-                if let Some(room) = grid[y][x] {
+    let items_cout = rand::thread_rng().gen_range(ITEMS_MIN..=ITEMS_MAX);
+    for _ in 0..items_cout {
+        loop {
+            let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
+            let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
+            if let Some(room) = grid[y][x] {
+                contents[y][x].push(Object {
+                    x: rand::thread_rng().gen_range(1..room.pos.w-1),
+                    y: rand::thread_rng().gen_range(1..room.pos.h-1),
+                    content: Content::Item(Item::random())
+                });
+                break;
+            }
+        }
+    }
+
+    let enemies_count = rand::thread_rng().gen_range(MONSTERS_MIN..=MONSTERS_MAX);
+    for _ in 0..enemies_count {
+        loop {
+            let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
+            let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
+            if let Some(room) = grid[y][x] {
+                if c_room.y != y as u16 && c_room.x != x as u16 {
                     contents[y][x].push(Object {
                         x: rand::thread_rng().gen_range(1..room.pos.w-1),
                         y: rand::thread_rng().gen_range(1..room.pos.h-1),
-                        content: Content::Item(Item::random())
+                        content: Content::Enemy(Enemy::random())
                     });
                     break;
-                }
-            }
-        }
-
-        let enemies_count = rand::thread_rng().gen_range(MONSTERS_MIN..=MONSTERS_MAX);
-        for _ in 0..enemies_count {
-            loop {
-                let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
-                let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
-                if let Some(room) = grid[y][x] {
-                    if c_room.y != y as u16 && c_room.x != x as u16 {
-                        contents[y][x].push(Object {
-                            x: rand::thread_rng().gen_range(1..room.pos.w-1),
-                            y: rand::thread_rng().gen_range(1..room.pos.h-1),
-                            content: Content::Enemy(Enemy::random())
-                        });
-                        break;
-                    }
                 }
             }
         }
@@ -567,4 +307,50 @@ fn main() -> Result<(), ()>{
     execute!(stdout, LeaveAlternateScreen).unwrap();
     terminal::disable_raw_mode().unwrap();
     Ok(())
+}
+
+// can be made better
+fn queue_rect(stdout: &mut Stdout, rect: &Rect) {
+    for y in 0..rect.h{
+        for x in 0..rect.w {
+            if x == 0 || x == rect.w-1 || y == 0 || y == rect.h-1 {
+                queue!(stdout,
+                       MoveTo(rect.x+x, rect.y+y),
+                       Print(CHAR_WALL)
+                       ).unwrap();
+            }
+        }
+    }
+}
+
+fn queue_room(stdout: &mut Stdout, room: &Room) {
+    queue_rect(stdout, &room.pos);
+    for obj in room.contents {
+        queue!(stdout, MoveTo(room.pos.x+obj.x, room.pos.y+obj.y)).unwrap();
+        match obj.content {
+            Content::Item(item) => {
+                if item.hidden { queue!(stdout, Print(CHAR_HIDDEN)).unwrap() }
+                else {
+                    match item.kind {
+                        ItemKind::NONE => panic!("I don't think this should ever happen"),
+                        ItemKind::__Count => panic!("This should never happen"),
+                        _ => queue!(stdout, Print(CHAR_ITEM)).unwrap(),
+                    }
+                }
+            }
+            Content::Enemy(enemy) => {
+                if enemy.hidden { queue!(stdout, Print(CHAR_HIDDEN)).unwrap() }
+                else {
+                    match enemy.kind {
+                        EnemyKind::NONE => panic!("I don't think this should ever happen"),
+                        EnemyKind::__Count => panic!("This should never happen"),
+                        EnemyKind::Ghost => queue!(stdout, Print(CHAR_ENEMY_GHOST)).unwrap(),
+                        EnemyKind::Ogre => queue!(stdout, Print(CHAR_ENEMY_OGRE)).unwrap(),
+                        EnemyKind::Skeleton => queue!(stdout, Print(CHAR_ENEMY_SKELETON)).unwrap(),
+                        EnemyKind::Zombie => queue!(stdout, Print(CHAR_ENEMY_ZOMBIE)).unwrap(),
+                    }
+                }
+            }
+        }
+    }
 }
