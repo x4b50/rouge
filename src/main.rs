@@ -16,7 +16,7 @@ const EMPTY_ROOM: Room = Room {
 };
 
 const CHAR_WALL: char = '#';
-const CHAR_FLOOR: char = '.';
+const CHAR_FLOOR: char = ' ';
 const CHAR_PLAYER: char = '@';
 const CHAR_HIDDEN: char = '?';
 const CHAR_ITEM: char = 'I';
@@ -163,38 +163,20 @@ fn main() -> Result<(), ()>{
     for y in 0..ROOMS_Y as usize {
         for x in 0..ROOMS_X as usize {
             if let Some(room) = &grid[y][x] {
-                let posx1 = room.pos.x + room.pos.w-1;
-                let posy1 = room.pos.y + room.pos.h/2;
                 for x2 in x+1..ROOMS_X as usize {
                     if let Some(room2) = &grid[y][x2] {
-                        let posx2 = room2.pos.x;
-                        let posy2 = room2.pos.y + room2.pos.h/2;
-
-                        doors_count += 1;
                         add_hallway(&mut stdout,
                                      &mut hallways_present, &mut hallways,
-                                     room, room2,
-                                     doors_count,
-                                     posx1, posy1,
-                                     posx2, posy2);
+                                     room, room2, &mut doors_count, false);
                         break;
                     }
                 }
 
-                let posx1 = room.pos.x + room.pos.w/2;
-                let posy1 = room.pos.y + room.pos.h-1;
                 for y2 in y+1..ROOMS_Y as usize {
                     if let Some(room2) = &grid[y2][x] {
-                        let posx2 = room2.pos.x + room2.pos.w/2;
-                        let posy2 = room2.pos.y;
-
-                        doors_count += 1;
                         add_hallway(&mut stdout,
                                      &mut hallways_present, &mut hallways,
-                                     room, room2,
-                                     doors_count,
-                                     posx1, posy1,
-                                     posx2, posy2);
+                                     room, room2, &mut doors_count, true);
                         break;
                     }
                 }
@@ -259,21 +241,33 @@ fn main() -> Result<(), ()>{
 
 #[inline(always)]
 fn add_hallway<'a> (stdout: &mut Stdout, hs_pr: &mut [bool], hs: &mut [Hallway<'a>],
-                    r1: &'a Room, r2: &'a Room, count: usize,
-                    x1: u16, y1: u16, x2: u16, y2: u16)
+                    r1: &'a Room, r2: &'a Room, count: &mut usize, vert: bool)
 {
-    hs_pr[count-1] = true;
-    hs[count-1] = Hallway{
+    let (x1, y1, x2, y2);
+    if !vert {
+        x1 = r1.pos.x + r1.pos.w-1;
+        y1 = r1.pos.y + r1.pos.h/2;
+        x2 = r2.pos.x;
+        y2 = r2.pos.y + r2.pos.h/2;
+    } else {
+        x1 = r1.pos.x + r1.pos.w/2;
+        y1 = r1.pos.y + r1.pos.h-1;
+        x2 = r2.pos.x + r2.pos.w/2;
+        y2 = r2.pos.y;
+    }
+    hs_pr[*count] = true;
+    hs[*count] = Hallway{
         entr: [Point {x: x1, y: y1}, Point {x: x2, y: y2}],
         rooms: [r1, r2]
     };
+    *count += 1;
 
     queue!(stdout,
            SetAttribute(Attribute::Bold),
            SetBackgroundColor(Color::Cyan),
            SetForegroundColor(Color::Black),
            MoveTo(x1, y1), Print(format!("{}", count)),
-           if count > 9 {
+           if *count > 9 {
                MoveTo(x2-1, y2)
            } else {
                MoveTo(x2, y2)

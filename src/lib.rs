@@ -234,7 +234,7 @@ pub mod macros {
             if cond {
                 queue_position_cleanup!($stdout, $pos);
                 $pos.$axis = $pos.$axis $sign 1;
-            }else {
+            } else {
                 let hw_idx = (0.5 $sign 0.5) as usize;
                 for i in 0..HALLWAYS_SIZE {
                     if !$hs_p[i] {break}
