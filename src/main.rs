@@ -45,6 +45,7 @@ fn main() -> Result<(), ()>{
     if height < 30 {exit!(stdout, "Height of terminal window should be at least 80 characters");}
     let height = height-2;
 
+    let player = Player::random();
     let mut grid = [[None;ROOMS_X as usize];ROOMS_Y as usize];
     let mut room_count = 0;
     while room_count < MIN_ROOM_COUNT {
@@ -202,7 +203,8 @@ fn main() -> Result<(), ()>{
 
     // TODO: might switch up and down
     // TODO: simplify hallways
-    'l: loop {
+    loop {
+        // logic ---------------------------------------------------------------
         match moved {
             Move::NONE => {}
             Move::R => {
@@ -282,26 +284,31 @@ fn main() -> Result<(), ()>{
                     }
                 }}
         }
+        // logic ---------------------------------------------------------------
+
+        // rendering -----------------------------------------------------------
+        queue_menu(&mut stdout, &player, width, height);
         queue_position!(stdout, position);
         stdout.flush().unwrap();
+        // rendering -----------------------------------------------------------
 
-        // get event for next move
-        moved = Move::NONE;
+        // events --------------------------------------------------------------
         if let Ok(e) = event::read() {
             match e {
                 Event::Key(k) => {
                     match k.code {
-                        KeyCode::Char('q') => {break 'l;}
+                        KeyCode::Char('q') => {break;}
                         KeyCode::Char('h') => {moved = Move::L}
                         KeyCode::Char('j') => {moved = Move::D}
                         KeyCode::Char('k') => {moved = Move::U}
                         KeyCode::Char('l') => {moved = Move::R}
-                        _ => {}
+                        _ => {moved = Move::NONE}
                     }
                 }
                 _ => {}
             }
         }
+        // events --------------------------------------------------------------
     }
 
     execute!(stdout, LeaveAlternateScreen).unwrap();

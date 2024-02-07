@@ -1,20 +1,23 @@
 use core::panic;
 use rand::{Rng, random};
-
-// TODO: work on that to not fuck up the display
-#[allow(unused_macros)]
-macro_rules! dprintln {
-    ($stdout:expr, $( $msg:expr ),*) => {
-        execute!($stdout, LeaveAlternateScreen).unwrap();
-        terminal::disable_raw_mode().unwrap();
-        println!($( $msg, )*);
-        terminal::enable_raw_mode().unwrap();
-        execute!($stdout, MoveLeft(u16::MAX)).unwrap();
-        execute!($stdout, EnterAlternateScreen).unwrap();
-    };
-}
+use std::io::Stdout;
+use crossterm::{cursor::{MoveTo, MoveRight}, queue, style::Print};
 
 pub mod macros {
+    // TODO: work on that to not fuck up the display
+    #[macro_export]
+    #[allow(unused_macros)]
+    macro_rules! dprintln {
+        ($stdout:expr, $( $msg:expr ),*) => {
+            execute!($stdout, LeaveAlternateScreen).unwrap();
+            terminal::disable_raw_mode().unwrap();
+            println!($( $msg, )*);
+            terminal::enable_raw_mode().unwrap();
+            execute!($stdout, MoveLeft(u16::MAX)).unwrap();
+            execute!($stdout, EnterAlternateScreen).unwrap();
+        };
+    }
+
     #[macro_export]
     macro_rules! exit {
         ($stdout:expr, $msg:expr) => {
@@ -68,6 +71,43 @@ pub mod macros {
                    MoveTo($position.x, $position.y),
                    Print(" "),
                    ).unwrap();
+        };
+    }
+
+    #[macro_export]
+    macro_rules! replace_expr {
+        ($_t:tt $sub:expr) => {$sub};
+    }
+
+
+    // magic
+    // https://danielkeep.github.io/tlborm/book/blk-counting.html
+    // https://stackoverflow.com/questions/34304593/counting-length-of-repetition-in-macro
+    // https://stackoverflow.com/questions/37140768/how-to-get-struct-field-names-in-rust
+    #[macro_export]
+    macro_rules! gen_menu {
+        (struct $name:ident {$($field:ident: $type:ty),+ $(,)+ }) => {
+            pub struct $name {
+                pub $($field: $type),*
+            }
+
+            pub fn queue_menu(stdout: &mut Stdout, player: &$name, width: u16, height: u16) {
+                let mut w = 0;
+                $(w += stringify!($field).len() as u16 +4;)*
+                let pads = {<[()]>::len(&[$(replace_expr!($field ())),*])} as u16 + 1;
+                let padding = (width-w)/pads;
+                queue!(stdout,
+                       MoveTo(0, height),
+                       Print("-".repeat(width.into())),
+                       MoveTo(0, height+1),
+                       $(
+                           MoveRight(padding),
+                           Print(stringify!($field)),
+                           Print(": "),
+                           Print(player.$field),
+                        )*
+                      ).unwrap();
+            }
         };
     }
 }
@@ -171,13 +211,27 @@ pub enum EnemyKind {
     __Count,
 }
 
-struct Player {
-    pub hp: i32,
-    pub def: i32,
-    pub atk: i32,
-    pub gold: i32,
-    pub exp: i32,
-    pub lvl: i32,
+// do stuff like hp max ...
+gen_menu!(struct Player {
+    lvl: i32,
+    exp: i32,
+    hp: i32,
+    def: i32,
+    atk: i32,
+    gold: i32,
+});
+
+impl Player {
+    pub fn random() -> Player {
+        Player {
+            hp: rand::thread_rng().gen_range(10..=25),
+            def: rand::thread_rng().gen_range(1..=5),
+            atk: rand::thread_rng().gen_range(1..=5),
+            gold: 0,
+            exp: 0,
+            lvl: 1,
+        }
+    }
 }
 
 // TODO: different level items
