@@ -95,7 +95,7 @@ pub struct Enemy {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum EnemyKind {
     NONE,
-    Ghost,
+    Goblin,
     Ogre,
     Skeleton,
     Zombie,
@@ -256,7 +256,6 @@ pub mod macros {
     macro_rules! replace_expr {
         ($_t:tt $sub:expr) => {$sub};
     }
-
 
     // magic
     // https://danielkeep.github.io/tlborm/book/blk-counting.html

@@ -21,7 +21,7 @@ const CHAR_HIDDEN: char = '?';
 const CHAR_ITEM: char = 'I';
 const CHAR_ENEMY_ZOMBIE: char = 'Z';
 const CHAR_ENEMY_SKELETON: char = 'S';
-const CHAR_ENEMY_GHOST: char = 'G';
+const CHAR_ENEMY_GOBLIN: char = 'G';
 const CHAR_ENEMY_OGRE: char = 'O';
 
 // TODO: make a shop mechanic or sth to make gold usefull
@@ -147,7 +147,7 @@ fn main() -> Result<(), ()>{
         for column in row {
             if let Some(room) = column {
                 queue_rect(&mut stdout, &room.pos);
-                queue_room(&mut stdout, room);
+                queue_room(&mut stdout, room, curr_room);
             }
         }
     }
@@ -213,7 +213,7 @@ fn main() -> Result<(), ()>{
         for row in &grid {
             for column in row {
                 if let Some(room) = column {
-                    queue_room(&mut stdout, room);
+                    queue_room(&mut stdout, room, curr_room);
                 }
             }
         }
@@ -295,12 +295,12 @@ fn queue_rect(stdout: &mut Stdout, rect: &Rect) {
     }
 }
 
-fn queue_room(stdout: &mut Stdout, room: &Room) {
+fn queue_room(stdout: &mut Stdout, room: &Room, curr_room: &Room) {
     for obj in room.contents {
         queue!(stdout, MoveTo(room.pos.x+obj.x, room.pos.y+obj.y)).unwrap();
         match obj.content {
             Content::Item(item) => {
-                if item.hidden { queue!(stdout, Print(CHAR_HIDDEN)).unwrap() }
+                if item.hidden && curr_room != room { queue!(stdout, Print(CHAR_HIDDEN)).unwrap() }
                 else {
                     match item.kind {
                         ItemKind::NONE => panic!("I don't think this should ever happen"),
@@ -310,12 +310,12 @@ fn queue_room(stdout: &mut Stdout, room: &Room) {
                 }
             }
             Content::Enemy(enemy) => {
-                if enemy.hidden { queue!(stdout, Print(CHAR_HIDDEN)).unwrap() }
+                if enemy.hidden && curr_room != room { queue!(stdout, Print(CHAR_HIDDEN)).unwrap() }
                 else {
                     match enemy.kind {
                         EnemyKind::NONE => panic!("I don't think this should ever happen"),
                         EnemyKind::__Count => panic!("This should never happen"),
-                        EnemyKind::Ghost => queue!(stdout, Print(CHAR_ENEMY_GHOST)).unwrap(),
+                        EnemyKind::Goblin => queue!(stdout, Print(CHAR_ENEMY_GOBLIN)).unwrap(),
                         EnemyKind::Ogre => queue!(stdout, Print(CHAR_ENEMY_OGRE)).unwrap(),
                         EnemyKind::Skeleton => queue!(stdout, Print(CHAR_ENEMY_SKELETON)).unwrap(),
                         EnemyKind::Zombie => queue!(stdout, Print(CHAR_ENEMY_ZOMBIE)).unwrap(),
