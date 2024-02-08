@@ -1,7 +1,7 @@
 use rouge::*;
 use core::panic;
 use std::{io::{stdout, Stdout, Write}, usize};
-use crossterm::{cursor::MoveTo, terminal::{self, EnterAlternateScreen, LeaveAlternateScreen}, queue, style::{Print, Attribute, SetAttribute, SetForegroundColor, Color, ResetColor, SetBackgroundColor}, execute, event::{self, Event, KeyCode}};
+use crossterm::{cursor::{DisableBlinking, MoveTo, MoveLeft}, event::{self, Event, KeyCode}, execute, queue, style::{Attribute, Color, Print, ResetColor, SetAttribute, SetBackgroundColor, SetForegroundColor}, terminal::{self, EnterAlternateScreen, LeaveAlternateScreen, SetTitle}};
 use rand::{Rng, random};
 
 // TODO: organise this code
@@ -135,13 +135,12 @@ fn main() -> Result<(), ()>{
         }
     }
 
-    let mut curr_room;
-    if let Some(room) = &grid[c_room.y as usize][c_room.x as usize] {
-        curr_room = room;
-    } else {unreachable!("there should be a staring room")}
+    let mut curr_room =
+        if let Some(room) = &grid[c_room.y as usize][c_room.x as usize] {room}
+        else {unreachable!("there should be a staring room")};
 
     // switch to the game screen
-    execute!(stdout, EnterAlternateScreen).unwrap();
+    execute!(stdout, EnterAlternateScreen, SetTitle("Rouge"), DisableBlinking).unwrap();
     terminal::enable_raw_mode().unwrap();
 
     for row in &grid {
@@ -183,7 +182,6 @@ fn main() -> Result<(), ()>{
             }
         }
     }
-    stdout.flush().unwrap();
 
     macro_rules! movement {
         ($axis:tt, $sign:tt) => {
@@ -243,18 +241,18 @@ fn main() -> Result<(), ()>{
 fn add_hallway<'a> (stdout: &mut Stdout, hs_pr: &mut [bool], hs: &mut [Hallway<'a>],
                     r1: &'a Room, r2: &'a Room, count: &mut usize, vert: bool)
 {
-    let (x1, y1, x2, y2);
-    if !vert {
-        x1 = r1.pos.x + r1.pos.w-1;
-        y1 = r1.pos.y + r1.pos.h/2;
-        x2 = r2.pos.x;
-        y2 = r2.pos.y + r2.pos.h/2;
-    } else {
-        x1 = r1.pos.x + r1.pos.w/2;
-        y1 = r1.pos.y + r1.pos.h-1;
-        x2 = r2.pos.x + r2.pos.w/2;
-        y2 = r2.pos.y;
-    }
+    let (x1, y1, x2, y2) = if vert {(
+        r1.pos.x + r1.pos.w/2,
+        r1.pos.y + r1.pos.h-1,
+        r2.pos.x + r2.pos.w/2,
+        r2.pos.y
+    )} else {(
+        r1.pos.x + r1.pos.w-1,
+        r1.pos.y + r1.pos.h/2,
+        r2.pos.x,
+        r2.pos.y + r2.pos.h/2,
+    )};
+
     hs_pr[*count] = true;
     hs[*count] = Hallway{
         entr: [Point {x: x1, y: y1}, Point {x: x2, y: y2}],
@@ -302,9 +300,9 @@ fn queue_room(stdout: &mut Stdout, room: &Room, curr_room: &Room) {
             Content::Item(item) => {
                 if item.hidden && curr_room != room { queue!(stdout, Print(CHAR_HIDDEN)).unwrap() }
                 else {
-                    match item.kind {
-                        ItemKind::NONE => panic!("I don't think this should ever happen"),
-                        ItemKind::__Count => panic!("This should never happen"),
+                    match item.effect {
+                        Stat::NONE => panic!("I don't think this should ever happen"),
+                        Stat::__Count => panic!("This should never happen"),
                         _ => queue!(stdout, Print(CHAR_ITEM)).unwrap(),
                     }
                 }

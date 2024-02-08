@@ -1,4 +1,3 @@
-use core::panic;
 use rand::{Rng, random};
 use std::io::Stdout;
 use crossterm::{cursor::{MoveTo, MoveRight}, queue, style::Print};
@@ -62,24 +61,11 @@ pub enum Stat {
     __Count,
 }
 
-// TODO: might get reed of kind/effect and leave 1
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Item {
     pub hidden: bool,
-    pub kind: ItemKind,
     pub effect: Stat,
     pub value: i32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ItemKind {
-    NONE,
-    Healing,
-    Armor,
-    Weapon,
-    Gold,
-    EXP,
-    __Count,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -128,21 +114,11 @@ impl Player {
 // TODO: different level items
 impl Item {
     pub fn random() -> Item {
-        let kind = unsafe {
-            std::mem::transmute::<u8, ItemKind>
-                (rand::thread_rng().gen_range(1..ItemKind::__Count as u8))
-        };
         Item {
             hidden: random(),
-            kind,
-            effect: match kind {
-                ItemKind::Healing => Stat::HP,
-                ItemKind::Armor => Stat::DEF,
-                ItemKind::Weapon => Stat::ATK,
-                ItemKind::Gold => Stat::GOLD,
-                ItemKind::EXP => Stat::EXP,
-                ItemKind::__Count => panic!("`Item::random()` should not be able to generate kind 'ItemKind::__Count`'"),
-                ItemKind::NONE => panic!("`Item::random()` should not be able to generate kind 'ItemKind::NONE`'"),
+            effect: unsafe {
+                std::mem::transmute::<u8, Stat>
+                    (rand::thread_rng().gen_range(1..Stat::__Count as u8))
             },
             value: rand::thread_rng().gen_range(1..10)
         }
@@ -163,7 +139,11 @@ impl Enemy {
             atk: rand::thread_rng().gen_range(3..10),
             loot: if random() && random() {
                 Some(Item::random())
-            } else {None}
+            } else {
+                let mut item = Item::random();
+                item.effect = Stat::EXP;
+                Some(item)
+            }
         }
     }
 }
@@ -173,13 +153,13 @@ pub mod macros {
     #[macro_export]
     #[allow(unused_macros)]
     macro_rules! dprintln {
-        ($stdout:expr, $( $msg:expr ),*) => {
-            execute!($stdout, LeaveAlternateScreen).unwrap();
+        ($( $msg:expr ),*) => {
+            execute!(std::io::stderr(), LeaveAlternateScreen).unwrap();
             terminal::disable_raw_mode().unwrap();
             println!($( $msg, )*);
             terminal::enable_raw_mode().unwrap();
-            execute!($stdout, MoveLeft(u16::MAX)).unwrap();
-            execute!($stdout, EnterAlternateScreen).unwrap();
+            execute!(std::io::stderr(), MoveLeft(u16::MAX)).unwrap();
+            execute!(std::io::stderr(), EnterAlternateScreen).unwrap();
         };
     }
 
