@@ -2,10 +2,10 @@ use rand::{Rng, random};
 use std::io::Stdout;
 use crossterm::{cursor::{MoveTo, MoveRight}, queue, style::Print};
 
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub struct Room<'a> {
+#[derive(Debug, PartialEq, Clone)]
+pub struct Room {
     pub pos: Rect,
-    pub contents: &'a [Object]
+    pub contents: Vec<Object>
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -24,7 +24,7 @@ pub enum Content {
 #[derive(Debug, Clone, Copy)]
 pub struct Hallway<'a> {
     pub entr: [Point;2],
-    pub rooms: [&'a Room<'a>;2]
+    pub rooms: [&'a Room;2]
 }
 
 pub enum Move {
@@ -64,6 +64,7 @@ pub enum Stat {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Item {
     pub hidden: bool,
+    pub collected: bool,
     pub effect: Stat,
     pub value: i32,
 }
@@ -116,6 +117,7 @@ impl Item {
     pub fn random() -> Item {
         Item {
             hidden: random(),
+            collected: false,
             effect: unsafe {
                 std::mem::transmute::<u8, Stat>
                     (rand::thread_rng().gen_range(1..Stat::__Count as u8))
@@ -244,7 +246,7 @@ pub mod macros {
     macro_rules! gen_menu {
         (struct $name:ident {$($field:ident: $type:ty),+ $(,)* }) => {
             pub struct $name {
-                pub $($field: $type),*
+                $(pub $field: $type),*
             }
 
             pub fn queue_menu(stdout: &mut Stdout, player: &$name, width: u16, height: u16) {
@@ -255,6 +257,8 @@ pub mod macros {
                 queue!(stdout,
                        MoveTo(0, height),
                        Print("-".repeat(width.into())),
+                       MoveTo(0, height+1),
+                       Print(" ".repeat(width.into())),
                        MoveTo(0, height+1),
                        $(
                            MoveRight(padding),

@@ -12,7 +12,7 @@ const MIN_ROOM_COUNT: u32 = 8;
 const HALLWAYS_SIZE: usize = ((ROOMS_X-1)*ROOMS_Y + ROOMS_X*(ROOMS_Y-1)) as usize;
 const EMPTY_ROOM: Room = Room {
     pos: Rect {x:0, y:0, w:0, h:0},
-    contents: &[],
+    contents: vec![],
 };
 
 const CHAR_WALL: char = '#';
@@ -46,8 +46,8 @@ fn main() -> Result<(), ()>{
     if height < 30 {exit!(stdout, "Height of terminal window should be at least 80 characters");}
     let height = height-2;
 
-    let player = Player::random();
-    let mut grid = [[None;ROOMS_X as usize];ROOMS_Y as usize];
+    let mut player = Player::random();
+    let mut grid: [[Option<Room>;ROOMS_X as usize];ROOMS_Y as usize] = Default::default();
     let mut room_count = 0;
     while room_count < MIN_ROOM_COUNT {
         for (r, row) in (&mut grid).iter_mut().enumerate() {
@@ -68,7 +68,7 @@ fn main() -> Result<(), ()>{
                             x, y,
                             w, h,
                         },
-                        contents: &[]
+                        contents: vec![]
                     });
                     room_count += 1;
                 }
@@ -82,7 +82,7 @@ fn main() -> Result<(), ()>{
 
     'pos: for y in 0..ROOMS_Y {
         for x in 0..ROOMS_X {
-            if let Some(room) = grid[y as usize][x as usize] {
+            if let Some(room) = &grid[y as usize][x as usize] {
                 c_room = Point { x, y };
                 position = Point {
                     x: room.pos.x + 1,
@@ -100,7 +100,7 @@ fn main() -> Result<(), ()>{
         loop {
             let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
             let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
-            if let Some(room) = grid[y][x] {
+            if let Some(room) = &grid[y][x] {
                 contents[y][x].push(Object {
                     x: rand::thread_rng().gen_range(1..room.pos.w-1),
                     y: rand::thread_rng().gen_range(1..room.pos.h-1),
@@ -116,7 +116,7 @@ fn main() -> Result<(), ()>{
         loop {
             let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
             let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
-            if let Some(room) = grid[y][x] {
+            if let Some(room) = &grid[y][x] {
                 if c_room.y != y as u16 && c_room.x != x as u16 {
                     contents[y][x].push(Object {
                         x: rand::thread_rng().gen_range(1..room.pos.w-1),
@@ -131,13 +131,21 @@ fn main() -> Result<(), ()>{
 
     for y in 0..ROOMS_Y as usize {
         for x in 0..ROOMS_X as usize {
-            if let Some(room) = &mut grid[y][x] {room.contents = &contents[y][x];}
+            if let Some(room) = &mut grid[y][x] {room.contents = contents[y][x].clone();}
         }
     }
 
-    let mut curr_room =
-        if let Some(room) = &grid[c_room.y as usize][c_room.x as usize] {room}
-        else {unreachable!("there should be a staring room")};
+    struct CR<'a> {
+        x: usize,
+        y: usize,
+        r: &'a Room,
+    }
+    let mut curr_room = CR {
+        x: c_room.x as usize,
+        y: c_room.y as usize,
+        r: if let Some(room) = &grid[c_room.y as usize][c_room.x as usize] {room}
+        else {unreachable!("there should be a staring room")}
+    };
 
     // switch to the game screen
     execute!(stdout, EnterAlternateScreen, SetTitle("Rouge"), DisableBlinking).unwrap();
@@ -147,15 +155,17 @@ fn main() -> Result<(), ()>{
         for column in row {
             if let Some(room) = column {
                 queue_rect(&mut stdout, &room.pos);
-                queue_room(&mut stdout, room, curr_room);
+                queue_room(&mut stdout, room, curr_room.r);
             }
         }
     }
 
+    let er1 = EMPTY_ROOM.clone();
+    let er2 = EMPTY_ROOM.clone();
     let mut hallways_present =  [false; HALLWAYS_SIZE];
     let mut hallways = [Hallway{
         entr: [Point {x:0, y:0};2],
-        rooms: [&EMPTY_ROOM;2]
+        rooms: [&er1, &er2]
     };HALLWAYS_SIZE];
 
     let mut doors_count = 0;
@@ -185,7 +195,7 @@ fn main() -> Result<(), ()>{
 
     macro_rules! movement {
         ($axis:tt, $sign:tt) => {
-            check_move!(stdout, position, curr_room, hallways_present, hallways, $axis, $sign);
+            check_move!(stdout, position, curr_room.r, hallways_present, hallways, $axis, $sign);
         };
     }
 
@@ -194,7 +204,7 @@ fn main() -> Result<(), ()>{
         for row in &grid {
             for column in row {
                 if let Some(room) = column {
-                    queue_room(&mut stdout, room, curr_room);
+                    queue_room(&mut stdout, room, curr_room.r);
                 }
             }
         }
@@ -229,6 +239,47 @@ fn main() -> Result<(), ()>{
             Move::D => {movement!(y, +);}
             Move::U => {movement!(y, -);}
         }
+
+        let mut items_to_drop = vec![];
+        for (i, obj) in curr_room.r.contents.iter().enumerate() {
+            if obj.x == position.x - curr_room.r.pos.x && obj.y == position.y - curr_room.r.pos.y {
+                match obj.content {
+                    Content::Enemy(_) => {
+                        // todo!()
+                    }
+                    Content::Item(item) => {
+                        match item.effect {
+                            Stat::NONE => {panic!("Item should not have effect `NONE`")}
+                            Stat::__Count => {unreachable!("There should never be any `Stat::__Count` constructed")}
+                            Stat::HP => { player.hp += item.value;
+                                items_to_drop.push((curr_room.y,curr_room.x, i));
+                            }
+                            Stat::DEF => { player.def += item.value;
+                                items_to_drop.push((curr_room.y,curr_room.x, i));
+                            }
+                            Stat::ATK => { player.atk += item.value;
+                                items_to_drop.push((curr_room.y,curr_room.x, i));
+                            }
+                            Stat::GOLD => { player.gold += item.value;
+                                items_to_drop.push((curr_room.y,curr_room.x, i));
+                            }
+                            Stat::EXP => { player.exp += item.value;
+                                items_to_drop.push((curr_room.y,curr_room.x, i));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // for item in items_to_drop {
+            // if let Some(room) = &mut grid[item.0][item.1] {
+                // match room.contents[item.2].content {
+                    // Content::Item(mut item) => item.collected = true,
+                    // Content::Enemy(_) => todo!(),
+                // }
+            // }
+        // }
         // logic ---------------------------------------------------------------
     }
 
@@ -294,7 +345,7 @@ fn queue_rect(stdout: &mut Stdout, rect: &Rect) {
 }
 
 fn queue_room(stdout: &mut Stdout, room: &Room, curr_room: &Room) {
-    for obj in room.contents {
+    for obj in &room.contents {
         queue!(stdout, MoveTo(room.pos.x+obj.x, room.pos.y+obj.y)).unwrap();
         match obj.content {
             Content::Item(item) => {
