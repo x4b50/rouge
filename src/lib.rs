@@ -149,7 +149,6 @@ impl Enemy {
 }
 
 pub mod macros {
-    // TODO: work on that to not fuck up the display
     #[macro_export]
     #[allow(unused_macros)]
     macro_rules! dprintln {
