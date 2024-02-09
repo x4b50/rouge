@@ -8,36 +8,8 @@ pub struct Room {
     pub contents: Vec<Object>
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Hallway {
-    pub entr: [Point;2],
-    pub rooms: [Index;2]
-}
-
-// TODO: idk if keeping an index instead for ex. compying rect is a good idea
-#[derive(Debug)]
-pub struct Position {
-    pub x: u16,
-    pub y: u16,
-    pub room: Rect
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Point {
-    pub x: u16,
-    pub y: u16
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Index {
-    pub x: usize,
-    pub y: usize
-}
-
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Object {
-    pub hidden: bool,
-    pub removed: bool,
     pub x: u16,
     pub y: u16,
     pub content: Content
@@ -47,6 +19,35 @@ pub struct Object {
 pub enum Content {
     Item(Item),
     Enemy(Enemy)
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Hallway<'a> {
+    pub entr: [Point;2],
+    pub rooms: [&'a Room;2]
+}
+
+pub enum Move {
+    NONE,
+    R,
+    U,
+    D,
+    L,
+    // ...
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct Rect {
+    pub x: u16,
+    pub y: u16,
+    pub w: u16,
+    pub h: u16
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Point {
+    pub x: u16,
+    pub y: u16
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -62,12 +63,15 @@ pub enum Stat {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Item {
+    pub hidden: bool,
+    pub collected: bool,
     pub effect: Stat,
     pub value: i32,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Enemy {
+    pub hidden: bool,
     pub kind: EnemyKind,
     pub hp: i32,
     pub def: i32,
@@ -85,14 +89,7 @@ pub enum EnemyKind {
     __Count,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub struct Rect {
-    pub x: u16,
-    pub y: u16,
-    pub w: u16,
-    pub h: u16
-}
-
+// do stuff like hp max ...
 gen_menu!(struct Player {
     lvl: i32,
     exp: i32,
@@ -101,15 +98,6 @@ gen_menu!(struct Player {
     atk: i32,
     gold: i32,
 });
-
-pub enum Move {
-    NONE,
-    R,
-    U,
-    D,
-    L,
-    // ...
-}
 
 impl Player {
     pub fn random() -> Player {
@@ -128,6 +116,8 @@ impl Player {
 impl Item {
     pub fn random() -> Item {
         Item {
+            hidden: random(),
+            collected: false,
             effect: unsafe {
                 std::mem::transmute::<u8, Stat>
                     (rand::thread_rng().gen_range(1..Stat::__Count as u8))
@@ -141,6 +131,7 @@ impl Item {
 impl Enemy {
     pub fn random() -> Enemy {
         Enemy {
+            hidden: random(),
             kind: unsafe {
                 std::mem::transmute
                     (rand::thread_rng().gen_range(1..EnemyKind::__Count as u8))
@@ -159,13 +150,11 @@ impl Enemy {
     }
 }
 
-
 pub mod macros {
     #[macro_export]
     #[allow(unused_macros)]
     macro_rules! dprintln {
         ($( $msg:expr ),*) => {
-            std::io::stdout().flush().unwrap();
             execute!(std::io::stderr(), LeaveAlternateScreen).unwrap();
             terminal::disable_raw_mode().unwrap();
             println!($( $msg, )*);
@@ -190,7 +179,7 @@ pub mod macros {
             queue!($stdout,
                    MoveTo($position.x, $position.y),
                    Print(CHAR_PLAYER),
-                   MoveTo($position.x, $position.y),
+                   MoveTo($position.x, $position.y)
                   ).unwrap();
         };
     }
@@ -207,7 +196,7 @@ pub mod macros {
 
     #[macro_export]
     macro_rules! check_move {
-        ($stdout:expr, $pos:expr, $grid:expr, $hs_p:expr, $hs:expr, $axis:tt, $sign:tt) => {
+        ($stdout:expr, $pos:expr, $croom:expr, $hs_p:expr, $hs:expr, $axis:tt, $sign:tt) => {
             let next_pos = match stringify!($axis) {
                 "x" => Point{x: $pos.x $sign 1, y: $pos.y},
                 "y" => Point{x: $pos.x, y: $pos.y $sign 1},
@@ -216,10 +205,10 @@ pub mod macros {
             };
 
             let cond = match (stringify!($axis), stringify!($sign)) {
-                ("x", "+") => next_pos.x < $pos.room.x + $pos.room.w-1,
-                ("x", "-") => next_pos.x > $pos.room.x,
-                ("y", "+") => next_pos.y < $pos.room.y + $pos.room.h-1,
-                ("y", "-") => next_pos.y > $pos.room.y,
+                ("x", "+") => next_pos.x < $croom.pos.x + $croom.pos.w-1,
+                ("x", "-") => next_pos.x > $croom.pos.x,
+                ("y", "+") => next_pos.y < $croom.pos.y + $croom.pos.h-1,
+                ("y", "-") => next_pos.y > $croom.pos.y,
                 _ => panic!("direction signifier should be either `+` or `-`")
             };
 
@@ -233,13 +222,9 @@ pub mod macros {
                     else {
                         if next_pos == $hs[i].entr[1-hw_idx] {
                             queue_position_cleanup!($stdout, $pos);
-                            $pos.x = $hs[i].entr[hw_idx].x;
-                            $pos.y = $hs[i].entr[hw_idx].y;
+                            $pos = $hs[i].entr[hw_idx];
                             $pos.$axis = $pos.$axis $sign 1;
-                            let idx = $hs[i].rooms[hw_idx];
-                            if let Some(room) = &$grid[idx.y][idx.x] {
-                                $pos.room = room.pos.clone();
-                            } else {unreachable!("hallways should hold indexes of valid rooms")}
+                            $croom = $hs[i].rooms[hw_idx];
                             break
                         }
                     }
@@ -247,7 +232,6 @@ pub mod macros {
             }
         };
     }
-
 
     #[macro_export]
     macro_rules! replace_expr {

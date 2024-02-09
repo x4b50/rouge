@@ -1,7 +1,10 @@
 use rouge::*;
+use core::panic;
 use std::{io::{stdout, Stdout, Write}, usize};
 use crossterm::{cursor::{DisableBlinking, MoveTo, MoveLeft}, event::{self, Event, KeyCode}, execute, queue, style::{Attribute, Color, Print, ResetColor, SetAttribute, SetBackgroundColor, SetForegroundColor}, terminal::{self, EnterAlternateScreen, LeaveAlternateScreen, SetTitle}};
 use rand::{Rng, random};
+
+// TODO: organise this code
 
 const ROOMS_X: u16 = 4;
 const ROOMS_Y: u16 = 3;
@@ -72,82 +75,98 @@ fn main() -> Result<(), ()>{
             }
         }
     }
+    
+    let mut position = Point{x:0, y:0};
+    let mut moved = Move::NONE;
+    let mut c_room = Point {x: u16::MAX, y: u16::MAX};
 
-    let mut position = Position {x:0, y:0, room: Rect {x:0, y:0, w:0, h:0}};
-    'p: for y in 0..ROOMS_Y as usize {
-        for x in 0..ROOMS_X as usize {
-            if let Some(room) = &grid[y][x] {
-                position = Position {
-                    x: room.pos.x+1, y:room.pos.y+1,
-                    room: room.pos.clone()
-                }; break 'p;
+    'pos: for y in 0..ROOMS_Y {
+        for x in 0..ROOMS_X {
+            if let Some(room) = &grid[y as usize][x as usize] {
+                c_room = Point { x, y };
+                position = Point {
+                    x: room.pos.x + 1,
+                    y: room.pos.y + 1
+                }; break 'pos;
             }
         }
     }
 
-    { // do not keep contents around
-        let mut contents: [[Vec<Object>; ROOMS_X as usize]; ROOMS_Y as usize] = Default::default();
-        let items_cout = rand::thread_rng().gen_range(ITEMS_MIN..=ITEMS_MAX);
-        for _ in 0..items_cout {
-            loop {
-                let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
-                let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
-                if let Some(room) = &grid[y][x] {
+    // TODO: check for content position collisions
+    let mut contents: [[Vec<Object>; ROOMS_X as usize]; ROOMS_Y as usize] = Default::default();
+
+    let items_cout = rand::thread_rng().gen_range(ITEMS_MIN..=ITEMS_MAX);
+    for _ in 0..items_cout {
+        loop {
+            let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
+            let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
+            if let Some(room) = &grid[y][x] {
+                contents[y][x].push(Object {
+                    x: rand::thread_rng().gen_range(1..room.pos.w-1),
+                    y: rand::thread_rng().gen_range(1..room.pos.h-1),
+                    content: Content::Item(Item::random())
+                });
+                break;
+            }
+        }
+    }
+
+    let enemies_count = rand::thread_rng().gen_range(MONSTERS_MIN..=MONSTERS_MAX);
+    for _ in 0..enemies_count {
+        loop {
+            let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
+            let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
+            if let Some(room) = &grid[y][x] {
+                if c_room.y != y as u16 && c_room.x != x as u16 {
                     contents[y][x].push(Object {
-                        hidden: random(),
-                        removed: false,
                         x: rand::thread_rng().gen_range(1..room.pos.w-1),
                         y: rand::thread_rng().gen_range(1..room.pos.h-1),
-                        content: Content::Item(Item::random())
+                        content: Content::Enemy(Enemy::random())
                     });
                     break;
                 }
             }
         }
+    }
 
-        let enemies_count = rand::thread_rng().gen_range(MONSTERS_MIN..=MONSTERS_MAX);
-        for _ in 0..enemies_count {
-            loop {
-                let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
-                let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
-                if let Some(room) = &grid[y][x] {
-                    if room.pos != position.room {
-                        contents[y][x].push(Object {
-                            hidden: random(),
-                            removed: false,
-                            x: rand::thread_rng().gen_range(1..room.pos.w-1),
-                            y: rand::thread_rng().gen_range(1..room.pos.h-1),
-                            content: Content::Enemy(Enemy::random())
-                        });
-                        break;
-                    }
-                }
-            }
-        }
-
-        for y in 0..ROOMS_Y as usize {
-            for x in 0..ROOMS_X as usize {
-                if let Some(room) = &mut grid[y][x] {room.contents = contents[y][x].clone();}
-            }
+    for y in 0..ROOMS_Y as usize {
+        for x in 0..ROOMS_X as usize {
+            if let Some(room) = &mut grid[y][x] {room.contents = contents[y][x].clone();}
         }
     }
+
+    struct CR<'a> {
+        x: usize,
+        y: usize,
+        r: &'a Room,
+    }
+    let mut curr_room = CR {
+        x: c_room.x as usize,
+        y: c_room.y as usize,
+        r: if let Some(room) = &grid[c_room.y as usize][c_room.x as usize] {room}
+        else {unreachable!("there should be a staring room")}
+    };
 
     // switch to the game screen
     execute!(stdout, EnterAlternateScreen, SetTitle("Rouge"), DisableBlinking).unwrap();
     terminal::enable_raw_mode().unwrap();
+
     for row in &grid {
         for column in row {
             if let Some(room) = column {
                 queue_rect(&mut stdout, &room.pos);
+                queue_room(&mut stdout, room, curr_room.r);
             }
         }
     }
 
-    let mut hs_present = [false; HALLWAYS_SIZE];
+    let er1 = EMPTY_ROOM.clone();
+    let er2 = EMPTY_ROOM.clone();
+    let mut hallways_present =  [false; HALLWAYS_SIZE];
     let mut hallways = [Hallway{
-        entr: [Point{x:0,y:0};2],
-        rooms: [Index{x:0,y:0};2],
-    }; HALLWAYS_SIZE];
+        entr: [Point {x:0, y:0};2],
+        rooms: [&er1, &er2]
+    };HALLWAYS_SIZE];
 
     let mut doors_count = 0;
     for y in 0..ROOMS_Y as usize {
@@ -155,16 +174,18 @@ fn main() -> Result<(), ()>{
             if let Some(room) = &grid[y][x] {
                 for x2 in x+1..ROOMS_X as usize {
                     if let Some(room2) = &grid[y][x2] {
-                        add_hallway(&mut stdout, &mut hs_present, &mut hallways, &mut doors_count,
-                                    x, y, x2, y, room, room2, false);
+                        add_hallway(&mut stdout,
+                                     &mut hallways_present, &mut hallways,
+                                     room, room2, &mut doors_count, false);
                         break;
                     }
                 }
 
                 for y2 in y+1..ROOMS_Y as usize {
                     if let Some(room2) = &grid[y2][x] {
-                        add_hallway(&mut stdout, &mut hs_present, &mut hallways, &mut doors_count,
-                                    x, y, x, y2, room, room2, true);
+                        add_hallway(&mut stdout,
+                                     &mut hallways_present, &mut hallways,
+                                     room, room2, &mut doors_count, true);
                         break;
                     }
                 }
@@ -172,13 +193,18 @@ fn main() -> Result<(), ()>{
         }
     }
 
-    let mut moved = Move::NONE;
+    macro_rules! movement {
+        ($axis:tt, $sign:tt) => {
+            check_move!(stdout, position, curr_room.r, hallways_present, hallways, $axis, $sign);
+        };
+    }
+
     loop {
         // rendering -----------------------------------------------------------
         for row in &grid {
             for column in row {
                 if let Some(room) = column {
-                    queue_room(&mut stdout, room, &position);
+                    queue_room(&mut stdout, room, curr_room.r);
                 }
             }
         }
@@ -208,14 +234,52 @@ fn main() -> Result<(), ()>{
         // logic ---------------------------------------------------------------
         match moved {
             Move::NONE => {}
-            Move::R => {check_move!(stdout, position, grid, hs_present, hallways, x, +);}
-            Move::L => {check_move!(stdout, position, grid, hs_present, hallways, x, -);}
-            Move::D => {check_move!(stdout, position, grid, hs_present, hallways, y, +);}
-            Move::U => {check_move!(stdout, position, grid, hs_present, hallways, y, -);}
+            Move::R => {movement!(x, +);}
+            Move::L => {movement!(x, -);}
+            Move::D => {movement!(y, +);}
+            Move::U => {movement!(y, -);}
         }
 
-        // let mut items_to_drop = vec![];
+        let mut items_to_drop = vec![];
+        for (i, obj) in curr_room.r.contents.iter().enumerate() {
+            if obj.x == position.x - curr_room.r.pos.x && obj.y == position.y - curr_room.r.pos.y {
+                match obj.content {
+                    Content::Enemy(_) => {
+                        // todo!()
+                    }
+                    Content::Item(item) => {
+                        match item.effect {
+                            Stat::NONE => {panic!("Item should not have effect `NONE`")}
+                            Stat::__Count => {unreachable!("There should never be any `Stat::__Count` constructed")}
+                            Stat::HP => { player.hp += item.value;
+                                items_to_drop.push((curr_room.y,curr_room.x, i));
+                            }
+                            Stat::DEF => { player.def += item.value;
+                                items_to_drop.push((curr_room.y,curr_room.x, i));
+                            }
+                            Stat::ATK => { player.atk += item.value;
+                                items_to_drop.push((curr_room.y,curr_room.x, i));
+                            }
+                            Stat::GOLD => { player.gold += item.value;
+                                items_to_drop.push((curr_room.y,curr_room.x, i));
+                            }
+                            Stat::EXP => { player.exp += item.value;
+                                items_to_drop.push((curr_room.y,curr_room.x, i));
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
+        // for item in items_to_drop {
+            // if let Some(room) = &mut grid[item.0][item.1] {
+                // match room.contents[item.2].content {
+                    // Content::Item(mut item) => item.collected = true,
+                    // Content::Enemy(_) => todo!(),
+                // }
+            // }
+        // }
         // logic ---------------------------------------------------------------
     }
 
@@ -224,35 +288,39 @@ fn main() -> Result<(), ()>{
     Ok(())
 }
 
-fn add_hallway(stdout: &mut Stdout, hs_present: &mut [bool], hallways: &mut [Hallway], doors_count: &mut usize,
-               x1: usize, y1: usize, x2: usize, y2: usize, r1: &Room, r2: &Room, vert: bool) {
-    let (ax1, ay1, ax2, ay2) = if !vert {(
+#[inline(always)]
+fn add_hallway<'a> (stdout: &mut Stdout, hs_pr: &mut [bool], hs: &mut [Hallway<'a>],
+                    r1: &'a Room, r2: &'a Room, count: &mut usize, vert: bool)
+{
+    let (x1, y1, x2, y2) = if vert {(
+        r1.pos.x + r1.pos.w/2,
+        r1.pos.y + r1.pos.h-1,
+        r2.pos.x + r2.pos.w/2,
+        r2.pos.y
+    )} else {(
         r1.pos.x + r1.pos.w-1,
         r1.pos.y + r1.pos.h/2,
         r2.pos.x,
         r2.pos.y + r2.pos.h/2,
-    )} else {(
-        r1.pos.x + r1.pos.w/2,
-        r1.pos.y + r1.pos.h-1,
-        r2.pos.x + r2.pos.w/2,
-        r2.pos.y,
     )};
-    hs_present[*doors_count] = true;
-    hallways[*doors_count] = Hallway {
-        entr: [Point {x: ax1, y: ay1}, Point {x: ax2, y: ay2}],
-        rooms: [Index {x: x1, y: y1}, Index {x:x2, y:y2}]
+
+    hs_pr[*count] = true;
+    hs[*count] = Hallway{
+        entr: [Point {x: x1, y: y1}, Point {x: x2, y: y2}],
+        rooms: [r1, r2]
     };
-    *doors_count += 1;
+    *count += 1;
+
     queue!(stdout,
            SetAttribute(Attribute::Bold),
            SetBackgroundColor(Color::Cyan),
            SetForegroundColor(Color::Black),
-           MoveTo(ax1, ay1), Print(format!("{}", doors_count)),
-           if *doors_count > 9 {
-               MoveTo(ax2-1, ay1)
+           MoveTo(x1, y1), Print(format!("{}", count)),
+           if *count > 9 {
+               MoveTo(x2-1, y2)
            } else {
-               MoveTo(ax2, ay2)
-           }, Print(format!("{}", doors_count)),
+               MoveTo(x2, y2)
+           }, Print(format!("{}", count)),
            SetAttribute(Attribute::Reset),
            ResetColor).unwrap();
 }
@@ -276,20 +344,23 @@ fn queue_rect(stdout: &mut Stdout, rect: &Rect) {
     }
 }
 
-fn queue_room(stdout: &mut Stdout, room: &Room, position: &Position) {
+fn queue_room(stdout: &mut Stdout, room: &Room, curr_room: &Room) {
     for obj in &room.contents {
-        if !obj.removed {
-            queue!(stdout, MoveTo(room.pos.x+obj.x, room.pos.y+obj.y)).unwrap();
-            if obj.hidden && room.pos != position.room {queue!(stdout, Print(CHAR_HIDDEN)).unwrap()}
-            match obj.content {
-                Content::Item(item) => {
+        queue!(stdout, MoveTo(room.pos.x+obj.x, room.pos.y+obj.y)).unwrap();
+        match obj.content {
+            Content::Item(item) => {
+                if item.hidden && curr_room != room { queue!(stdout, Print(CHAR_HIDDEN)).unwrap() }
+                else {
                     match item.effect {
                         Stat::NONE => panic!("I don't think this should ever happen"),
                         Stat::__Count => panic!("This should never happen"),
                         _ => queue!(stdout, Print(CHAR_ITEM)).unwrap(),
                     }
                 }
-                Content::Enemy(enemy) => {
+            }
+            Content::Enemy(enemy) => {
+                if enemy.hidden && curr_room != room { queue!(stdout, Print(CHAR_HIDDEN)).unwrap() }
+                else {
                     match enemy.kind {
                         EnemyKind::NONE => panic!("I don't think this should ever happen"),
                         EnemyKind::__Count => panic!("This should never happen"),
