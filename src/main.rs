@@ -281,22 +281,24 @@ fn queue_room(stdout: &mut Stdout, room: &Room, position: &Position) {
         if !obj.removed {
             queue!(stdout, MoveTo(room.pos.x+obj.x, room.pos.y+obj.y)).unwrap();
             if obj.hidden && room.pos != position.room {queue!(stdout, Print(CHAR_HIDDEN)).unwrap()}
-            match obj.content {
-                Content::Item(item) => {
-                    match item.effect {
-                        Stat::NONE => panic!("I don't think this should ever happen"),
-                        Stat::__Count => panic!("This should never happen"),
-                        _ => queue!(stdout, Print(CHAR_ITEM)).unwrap(),
+            else {
+                match obj.content {
+                    Content::Item(item) => {
+                        match item.effect {
+                            Stat::NONE => panic!("I don't think this should ever happen"),
+                            Stat::__Count => panic!("This should never happen"),
+                            _ => queue!(stdout, Print(CHAR_ITEM)).unwrap(),
+                        }
                     }
-                }
-                Content::Enemy(enemy) => {
-                    match enemy.kind {
-                        EnemyKind::NONE => panic!("I don't think this should ever happen"),
-                        EnemyKind::__Count => panic!("This should never happen"),
-                        EnemyKind::Goblin => queue!(stdout, Print(CHAR_ENEMY_GOBLIN)).unwrap(),
-                        EnemyKind::Ogre => queue!(stdout, Print(CHAR_ENEMY_OGRE)).unwrap(),
-                        EnemyKind::Skeleton => queue!(stdout, Print(CHAR_ENEMY_SKELETON)).unwrap(),
-                        EnemyKind::Zombie => queue!(stdout, Print(CHAR_ENEMY_ZOMBIE)).unwrap(),
+                    Content::Enemy(enemy) => {
+                        match enemy.kind {
+                            EnemyKind::NONE => panic!("I don't think this should ever happen"),
+                            EnemyKind::__Count => panic!("This should never happen"),
+                            EnemyKind::Goblin => queue!(stdout, Print(CHAR_ENEMY_GOBLIN)).unwrap(),
+                            EnemyKind::Ogre => queue!(stdout, Print(CHAR_ENEMY_OGRE)).unwrap(),
+                            EnemyKind::Skeleton => queue!(stdout, Print(CHAR_ENEMY_SKELETON)).unwrap(),
+                            EnemyKind::Zombie => queue!(stdout, Print(CHAR_ENEMY_ZOMBIE)).unwrap(),
+                        }
                     }
                 }
             }
