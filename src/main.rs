@@ -251,17 +251,19 @@ fn main() -> Result<(), ()>{
                         }
                     } else {
                         if let Content::Enemy(_) = &mut obj.content {
-                            // TODO: first check for collisions w/ different objects
-                            queue_enemy_cleanup!(stdout, position, obj);
-                            if p_y.abs_diff(o_y) > p_x.abs_diff(o_x) {
-                                match (p_y-o_y) > 0 {
-                                    true => obj.y += 1,
-                                    false => obj.y -= 1
-                                }
-                            } else {
-                                match (p_x-o_x) > 0 {
-                                    true => obj.x += 1,
-                                    false => obj.x -= 1
+                            if random() || random() {
+                                // TODO: first check for collisions w/ different objects
+                                queue_enemy_cleanup!(stdout, position, obj);
+                                if p_y.abs_diff(o_y) > p_x.abs_diff(o_x) {
+                                    match (p_y-o_y) > 0 {
+                                        true => obj.y += 1,
+                                        false => obj.y -= 1
+                                    }
+                                } else {
+                                    match (p_x-o_x) > 0 {
+                                        true => obj.x += 1,
+                                        false => obj.x -= 1
+                                    }
                                 }
                             }
                         }

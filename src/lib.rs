@@ -72,7 +72,7 @@ pub struct Enemy {
     pub hp: i32,
     pub def: i32,
     pub atk: i32,
-    pub loot: Option<Item>,
+    pub loot: Item,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -149,11 +149,11 @@ impl Enemy {
             def: rand::thread_rng().gen_range(3..10),
             atk: rand::thread_rng().gen_range(3..10),
             loot: if random() && random() {
-                Some(Item::random())
+                Item::random()
             } else {
                 let mut item = Item::random();
                 item.effect = Stat::EXP;
-                Some(item)
+                item
             }
         }
     }
