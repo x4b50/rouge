@@ -9,5 +9,5 @@ A simple rouge-like terminal game.
 - [ ] add level system
 - [ ] make gold useful
 - [ ] balance things
-- [ ] check for position conflicts when moving enemies
+- [x] check for position conflicts when moving enemies
 - [ ] check for position conflicts when generating items

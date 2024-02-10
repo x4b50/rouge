@@ -215,10 +215,11 @@ fn main() -> Result<(), ()>{
         }
 
         let mut item_to_drop = None;
+        let mut enemies_to_move = vec![];
         let y = (position.y *ROOMS_Y/height) as usize;
         let x = (position.x *ROOMS_X/width) as usize;
         if let Some(room) = &mut grid[y][x] {
-            for (o, obj) in room.contents.iter_mut().enumerate() {
+            for (o, obj) in room.contents.iter().enumerate() {
                 if !obj.removed {
                     let p_x = (position.x - position.room.x) as i32;
                     let p_y = (position.y - position.room.y) as i32;
@@ -250,32 +251,43 @@ fn main() -> Result<(), ()>{
                             Content::Enemy(_) => {}
                         }
                     } else {
-                        if let Content::Enemy(_) = &mut obj.content {
+                        if let Content::Enemy(_) = &obj.content {
                             if random() || random() {
-                                // TODO: first check for collisions w/ different objects
-                                queue_enemy_cleanup!(stdout, position, obj);
+                                let mut next_pos = Point {x: obj.x, y: obj.y};
                                 if p_y.abs_diff(o_y) > p_x.abs_diff(o_x) {
                                     match (p_y-o_y) > 0 {
-                                        true => obj.y += 1,
-                                        false => obj.y -= 1
+                                        true => next_pos.y += 1,
+                                        false => next_pos.y -= 1
                                     }
                                 } else {
                                     match (p_x-o_x) > 0 {
-                                        true => obj.x += 1,
-                                        false => obj.x -= 1
+                                        true => next_pos.x += 1,
+                                        false => next_pos.x -= 1
                                     }
+                                }
+                                // check for collisions with other objects
+                                'once: loop {
+                                    for obj in &room.contents {
+                                        if obj.x == next_pos.x && obj.y == next_pos.y {
+                                            break 'once;
+                                        }
+                                    }
+                                    queue_enemy_cleanup!(stdout, position, obj);
+                                    enemies_to_move.push((o, next_pos));
+                                    break;
                                 }
                             }
                         }
                     }
                 }
             }
-        }
-
-        if let Some(o) = item_to_drop {
-            if let Some(room) = &mut grid[y][x] {
+            for enemy in enemies_to_move {
+                room.contents[enemy.0].x = enemy.1.x;
+                room.contents[enemy.0].y = enemy.1.y;
+            }
+            if let Some(o) = item_to_drop {
                 room.contents.remove(o);
-            } else {unreachable!("How did you remove item from empty room")}
+            }
         }
         // logic ---------------------------------------------------------------
     }
