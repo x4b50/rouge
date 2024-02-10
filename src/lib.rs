@@ -165,6 +165,7 @@ pub mod macros {
     #[allow(unused_macros)]
     macro_rules! dprintln {
         ($( $msg:expr ),*) => {
+            use crossterm::cursor::MoveLeft;
             std::io::stdout().flush().unwrap();
             execute!(std::io::stderr(), LeaveAlternateScreen).unwrap();
             terminal::disable_raw_mode().unwrap();
@@ -275,11 +276,10 @@ pub mod macros {
                 $(pub $field: $type),*
             }
 
+            const MENU_WIDTH: u16 = 0 $( +stringify!($field).len() as u16 +4)*;
+            const N_PADDS: u16 = {<[()]>::len(&[$(replace_expr!($field ())),*])} as u16 + 1;
             pub fn queue_menu(stdout: &mut Stdout, player: &$name, width: u16, height: u16) {
-                let mut w = 0;
-                $(w += stringify!($field).len() as u16 +4;)*
-                let pads = {<[()]>::len(&[$(replace_expr!($field ())),*])} as u16 + 1;
-                let padding = (width-w)/pads;
+                let padding = (width-MENU_WIDTH)/N_PADDS;
                 queue!(stdout,
                        MoveTo(0, height),
                        Print("-".repeat(width.into())),

@@ -1,16 +1,12 @@
 use rouge::*;
 use std::{io::{stdout, Stdout, Write}, usize};
-use crossterm::{cursor::{DisableBlinking, MoveTo, MoveLeft}, event::{self, Event, KeyCode}, execute, queue, style::{Attribute, Color, Print, ResetColor, SetAttribute, SetBackgroundColor, SetForegroundColor}, terminal::{self, EnterAlternateScreen, LeaveAlternateScreen, SetTitle}};
+use crossterm::{cursor::{DisableBlinking, MoveTo}, event::{self, Event, KeyCode}, execute, queue, style::{Attribute, Color, Print, ResetColor, SetAttribute, SetBackgroundColor, SetForegroundColor}, terminal::{self, EnterAlternateScreen, LeaveAlternateScreen, SetTitle}};
 use rand::{Rng, random};
 
 const ROOMS_X: u16 = 4;
 const ROOMS_Y: u16 = 3;
 const MIN_ROOM_COUNT: u32 = 8;
 const HALLWAYS_SIZE: usize = ((ROOMS_X-1)*ROOMS_Y + ROOMS_X*(ROOMS_Y-1)) as usize;
-const EMPTY_ROOM: Room = Room {
-    pos: Rect {x:0, y:0, w:0, h:0},
-    contents: vec![],
-};
 
 const CHAR_WALL: char = '#';
 const CHAR_FLOOR: char = ' ';
@@ -22,18 +18,10 @@ const CHAR_ENEMY_SKELETON: char = 'S';
 const CHAR_ENEMY_GOBLIN: char = 'G';
 const CHAR_ENEMY_OGRE: char = 'O';
 
-// TODO: make a shop mechanic or sth to make gold usefull
 const ITEMS_MAX: u32 = MIN_ROOM_COUNT*3/4;
 const ITEMS_MIN: u32 = ITEMS_MAX/2;
 const MONSTERS_MAX: u32 = MIN_ROOM_COUNT;
 const MONSTERS_MIN: u32 = MONSTERS_MAX/2;
-
-// const ITEM_NAMES: [&str; 4] = [
-    // "Armor",
-    // "Sword",
-    // "Healing kit",
-    // "Pile of gold",
-// ];
 
 fn main() -> Result<(), ()>{
     let mut stdout = stdout();
@@ -45,29 +33,60 @@ fn main() -> Result<(), ()>{
 
     let mut player = Player::random();
     let mut grid: [[Option<Room>;ROOMS_X as usize];ROOMS_Y as usize] = Default::default();
-    let mut room_count = 0;
-    while room_count < MIN_ROOM_COUNT {
-        for (r, row) in (&mut grid).iter_mut().enumerate() {
-            for (c, column) in row.iter_mut().enumerate() {
-                if column.is_none() && random() {
-                    let r = r as u16;
-                    let c = c as u16;
-                    let x = rand::thread_rng().gen_range(c*width/ROOMS_X+1..(c+1)*width/ROOMS_X);
-                    let y = rand::thread_rng().gen_range(r*height/ROOMS_Y+1..(r+1)*height/ROOMS_Y);
+    {
+        let mut room_count = 0;
+        while room_count < MIN_ROOM_COUNT {
+            for (r, row) in (&mut grid).iter_mut().enumerate() {
+                for (c, column) in row.iter_mut().enumerate() {
+                    if column.is_none() && random() {
+                        let r = r as u16;
+                        let c = c as u16;
+                        let x = rand::thread_rng().gen_range(c*width/ROOMS_X+1..(c+1)*width/ROOMS_X);
+                        let y = rand::thread_rng().gen_range(r*height/ROOMS_Y+1..(r+1)*height/ROOMS_Y);
 
-                    if (c+1)*width/ROOMS_X-x < 15 {continue};
-                    if (r+1)*height/ROOMS_Y-y < 10 {continue};
-                    let w = rand::thread_rng().gen_range(12..(c+1)*width/ROOMS_X-x);
-                    let h = rand::thread_rng().gen_range(8..(r+1)*height/ROOMS_Y-y);
+                        if (c+1)*width/ROOMS_X-x < 15 {continue};
+                        if (r+1)*height/ROOMS_Y-y < 10 {continue};
+                        let w = rand::thread_rng().gen_range(12..(c+1)*width/ROOMS_X-x);
+                        let h = rand::thread_rng().gen_range(8..(r+1)*height/ROOMS_Y-y);
 
-                    *column = Some(Room{
-                        pos: Rect {
-                            x, y,
-                            w, h,
-                        },
-                        contents: vec![]
-                    });
-                    room_count += 1;
+                        *column = Some(Room{
+                            pos: Rect {
+                                x, y,
+                                w, h,
+                            },
+                            contents: vec![]
+                        });
+                        room_count += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    let mut hs_present = [false; HALLWAYS_SIZE];
+    let mut hallways = [Hallway{
+        entr: [Point{x:0,y:0};2],
+        rooms: [Index{x:0,y:0};2],
+    }; HALLWAYS_SIZE];
+
+    let mut doors_count = 0;
+    for y in 0..ROOMS_Y as usize {
+        for x in 0..ROOMS_X as usize {
+            if let Some(room) = &grid[y][x] {
+                for x2 in x+1..ROOMS_X as usize {
+                    if let Some(room2) = &grid[y][x2] {
+                        add_hallway(&mut hs_present, &mut hallways, &mut doors_count,
+                                    x, y, x2, y, room, room2, false);
+                        break;
+                    }
+                }
+
+                for y2 in y+1..ROOMS_Y as usize {
+                    if let Some(room2) = &grid[y2][x] {
+                        add_hallway(&mut hs_present, &mut hallways, &mut doors_count,
+                                    x, y, x, y2, room, room2, true);
+                        break;
+                    }
                 }
             }
         }
@@ -142,35 +161,7 @@ fn main() -> Result<(), ()>{
             }
         }
     }
-
-    let mut hs_present = [false; HALLWAYS_SIZE];
-    let mut hallways = [Hallway{
-        entr: [Point{x:0,y:0};2],
-        rooms: [Index{x:0,y:0};2],
-    }; HALLWAYS_SIZE];
-
-    let mut doors_count = 0;
-    for y in 0..ROOMS_Y as usize {
-        for x in 0..ROOMS_X as usize {
-            if let Some(room) = &grid[y][x] {
-                for x2 in x+1..ROOMS_X as usize {
-                    if let Some(room2) = &grid[y][x2] {
-                        add_hallway(&mut stdout, &mut hs_present, &mut hallways, &mut doors_count,
-                                    x, y, x2, y, room, room2, false);
-                        break;
-                    }
-                }
-
-                for y2 in y+1..ROOMS_Y as usize {
-                    if let Some(room2) = &grid[y2][x] {
-                        add_hallway(&mut stdout, &mut hs_present, &mut hallways, &mut doors_count,
-                                    x, y, x, y2, room, room2, true);
-                        break;
-                    }
-                }
-            }
-        }
-    }
+    queue_hallways(&mut stdout, &hs_present, &hallways);
 
     let mut moved = Move::NONE;
     loop {
@@ -297,7 +288,7 @@ fn main() -> Result<(), ()>{
     Ok(())
 }
 
-fn add_hallway(stdout: &mut Stdout, hs_present: &mut [bool], hallways: &mut [Hallway], doors_count: &mut usize,
+fn add_hallway(hs_present: &mut [bool], hallways: &mut [Hallway], doors_count: &mut usize,
                x1: usize, y1: usize, x2: usize, y2: usize, r1: &Room, r2: &Room, vert: bool) {
     let (ax1, ay1, ax2, ay2) = if !vert {(
         r1.pos.x + r1.pos.w-1,
@@ -316,18 +307,26 @@ fn add_hallway(stdout: &mut Stdout, hs_present: &mut [bool], hallways: &mut [Hal
         rooms: [Index {x: x1, y: y1}, Index {x:x2, y:y2}]
     };
     *doors_count += 1;
-    queue!(stdout,
-           SetAttribute(Attribute::Bold),
-           SetBackgroundColor(Color::Cyan),
-           SetForegroundColor(Color::Black),
-           MoveTo(ax1, ay1), Print(format!("{}", doors_count)),
-           if *doors_count > 9 {
-               MoveTo(ax2-1, ay2)
-           } else {
-               MoveTo(ax2, ay2)
-           }, Print(format!("{}", doors_count)),
-           SetAttribute(Attribute::Reset),
-           ResetColor).unwrap();
+}
+
+fn queue_hallways(stdout: &mut Stdout, hs_present: &[bool], hallways: &[Hallway]) {
+    for i in 0..HALLWAYS_SIZE {
+        if !hs_present[i] {break}
+        else {
+            queue!(stdout,
+                   SetAttribute(Attribute::Bold),
+                   SetBackgroundColor(Color::Cyan),
+                   SetForegroundColor(Color::Black),
+                   MoveTo(hallways[i].entr[0].x, hallways[i].entr[0].y), Print(format!("{}", i+1)),
+                   if i < 9 {
+                       MoveTo(hallways[i].entr[1].x, hallways[i].entr[1].y)
+                   } else {
+                       MoveTo(hallways[i].entr[1].x-1, hallways[i].entr[1].y)
+                   }, Print(format!("{}", i+1)),
+                   SetAttribute(Attribute::Reset),
+                   ResetColor).unwrap();
+        }
+    }
 }
 
 // can be made better
