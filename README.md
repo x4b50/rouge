@@ -3,7 +3,7 @@ A simple rouge-like terminal game.
 
 ## TODO
 - [x] fix menu when 1->2 digits
-- [ ] pick up items (kinda done, probably needs some rewriting)
+- [x] pick up items
 - [ ] make enemies move
 - [ ] add combat
 - [ ] add level system

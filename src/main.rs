@@ -214,8 +214,51 @@ fn main() -> Result<(), ()>{
             Move::U => {check_move!(stdout, position, grid, hs_present, hallways, y, -);}
         }
 
-        // let mut items_to_drop = vec![];
+        let mut item_to_drop = None;
+        for (r, row) in grid.iter().enumerate() {
+            for (c, column) in row.iter().enumerate() {
+                if let Some(room) = column {
+                    if room.pos == position.room {
+                        for (o, obj) in room.contents.iter().enumerate() {
+                            if obj.x == position.x - position.room.x && obj.y == position.y - position.room.y && !obj.removed {
+                                match obj.content {
+                                    Content::Item(item) => {
+                                        match item.effect {
+                                            Stat::NONE => unreachable!("`NONE` variant of `Stat` should not be accessable here"),
+                                            Stat::__Count => unreachable!("`__Count` variant of `Stat` should never be constructed"),
+                                            Stat::HP => { item_to_drop = Some((r, c, o));
+                                                player.hp += item.value;
+                                            }
+                                            Stat::DEF => { item_to_drop = Some((r, c, o));
+                                                player.def += item.value;
+                                            }
+                                            Stat::ATK => { item_to_drop = Some((r, c, o));
+                                                player.atk += item.value;
+                                            }
+                                            Stat::GOLD => { item_to_drop = Some((r, c, o));
+                                                player.gold += item.value;
+                                            }
+                                            Stat::EXP => { item_to_drop = Some((r, c, o));
+                                                player.exp += item.value;
+                                            }
+                                        }
+                                    }
+                                    Content::Enemy(_) => todo!()
+                                }
+                                break
+                            }
+                        }
+                        break
+                    }
+                }
+            }
+        }
 
+        if let Some((r,c,o)) = item_to_drop {
+            if let Some(room) = &mut grid[r][c] {
+                room.contents.remove(o);
+            } else {unreachable!("How did you remove item from empty room")}
+        }
         // logic ---------------------------------------------------------------
     }
 
