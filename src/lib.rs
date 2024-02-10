@@ -196,6 +196,16 @@ pub mod macros {
     }
 
     #[macro_export]
+    macro_rules! queue_enemy_cleanup {
+        ($stdout:expr, $position:expr, $obj:expr) => {
+            queue!($stdout,
+                   MoveTo($position.room.x + $obj.x, $position.room.y + $obj.y),
+                   Print(CHAR_FLOOR),
+                   ).unwrap();
+        };
+    }
+
+    #[macro_export]
     macro_rules! queue_position_cleanup {
         ($stdout:expr, $position:expr) => {
             queue!($stdout,

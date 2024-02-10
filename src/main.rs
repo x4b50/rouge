@@ -217,34 +217,55 @@ fn main() -> Result<(), ()>{
         let mut item_to_drop = None;
         let y = (position.y *ROOMS_Y/height) as usize;
         let x = (position.x *ROOMS_X/width) as usize;
-        if let Some(room) = &grid[y][x] {
-            for (o, obj) in room.contents.iter().enumerate() {
-                if obj.x == position.x - position.room.x && obj.y == position.y - position.room.y && !obj.removed {
-                    match obj.content {
-                        Content::Item(item) => {
-                            match item.effect {
-                                Stat::NONE => unreachable!("`NONE` variant of `Stat` should not be accessable here"),
-                                Stat::__Count => unreachable!("`__Count` variant of `Stat` should never be constructed"),
-                                Stat::HP => { item_to_drop = Some(o);
-                                    player.hp += item.value;
+        if let Some(room) = &mut grid[y][x] {
+            for (o, obj) in room.contents.iter_mut().enumerate() {
+                if !obj.removed {
+                    let p_x = (position.x - position.room.x) as i32;
+                    let p_y = (position.y - position.room.y) as i32;
+                    let o_x = obj.x as i32;
+                    let o_y = obj.y as i32;
+                    if o_x == p_x && o_y == p_y {
+                        match obj.content {
+                            Content::Item(item) => {
+                                match item.effect {
+                                    Stat::NONE => unreachable!("`NONE` variant of `Stat` should not be accessable here"),
+                                    Stat::__Count => unreachable!("`__Count` variant of `Stat` should never be constructed"),
+                                    Stat::HP => { item_to_drop = Some(o);
+                                        player.hp += item.value;
+                                    }
+                                    Stat::DEF => { item_to_drop = Some(o);
+                                        player.def += item.value;
+                                    }
+                                    Stat::ATK => { item_to_drop = Some(o);
+                                        player.atk += item.value;
+                                    }
+                                    Stat::GOLD => { item_to_drop = Some(o);
+                                        player.gold += item.value;
+                                    }
+                                    Stat::EXP => { item_to_drop = Some(o);
+                                        player.exp += item.value;
+                                    }
                                 }
-                                Stat::DEF => { item_to_drop = Some(o);
-                                    player.def += item.value;
+                            }
+                            Content::Enemy(_) => {}
+                        }
+                    } else {
+                        if let Content::Enemy(_) = &mut obj.content {
+                            // TODO: first check for collisions w/ different objects
+                            queue_enemy_cleanup!(stdout, position, obj);
+                            if p_y.abs_diff(o_y) > p_x.abs_diff(o_x) {
+                                match (p_y-o_y) > 0 {
+                                    true => obj.y += 1,
+                                    false => obj.y -= 1
                                 }
-                                Stat::ATK => { item_to_drop = Some(o);
-                                    player.atk += item.value;
-                                }
-                                Stat::GOLD => { item_to_drop = Some(o);
-                                    player.gold += item.value;
-                                }
-                                Stat::EXP => { item_to_drop = Some(o);
-                                    player.exp += item.value;
+                            } else {
+                                match (p_x-o_x) > 0 {
+                                    true => obj.x += 1,
+                                    false => obj.x -= 1
                                 }
                             }
                         }
-                        Content::Enemy(_) => todo!()
                     }
-                    break
                 }
             }
         }
