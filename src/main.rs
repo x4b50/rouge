@@ -287,7 +287,7 @@ fn add_hallway(stdout: &mut Stdout, hs_present: &mut [bool], hallways: &mut [Hal
            SetForegroundColor(Color::Black),
            MoveTo(ax1, ay1), Print(format!("{}", doors_count)),
            if *doors_count > 9 {
-               MoveTo(ax2-1, ay1)
+               MoveTo(ax2-1, ay2)
            } else {
                MoveTo(ax2, ay2)
            }, Print(format!("{}", doors_count)),
