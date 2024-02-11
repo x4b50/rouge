@@ -5,7 +5,7 @@ use rand::{Rng, random};
 
 const ROOMS_X: u16 = 4;
 const ROOMS_Y: u16 = 3;
-const MIN_ROOM_COUNT: u32 = 8;
+const MIN_ROOM_COUNT: u16 = 8;
 const HALLWAYS_SIZE: usize = ((ROOMS_X-1)*ROOMS_Y + ROOMS_X*(ROOMS_Y-1)) as usize;
 
 const CHAR_WALL: char = '#';
@@ -18,10 +18,10 @@ const CHAR_ENEMY_SKELETON: char = 'S';
 const CHAR_ENEMY_GOBLIN: char = 'G';
 const CHAR_ENEMY_OGRE: char = 'O';
 
-const ITEMS_MAX: u32 = MIN_ROOM_COUNT*3/4;
-const ITEMS_MIN: u32 = ITEMS_MAX/2;
-const MONSTERS_MAX: u32 = MIN_ROOM_COUNT;
-const MONSTERS_MIN: u32 = MONSTERS_MAX/2;
+const ITEMS_MAX: u16 = MIN_ROOM_COUNT*3/4;
+const ITEMS_MIN: u16 = ITEMS_MAX/2;
+const MONSTERS_MAX: u16 = MIN_ROOM_COUNT;
+const MONSTERS_MIN: u16 = MONSTERS_MAX*2/3;
 
 const MULT_ATK: i16 = 3;
 const MULT_DEF: i16 = 3;
@@ -123,7 +123,6 @@ fn main() -> Result<(), ()>{
                 if let Some(room) = &grid[y][x] {
                     contents[y][x].push(Object {
                         hidden: random(),
-                        removed: false,
                         x: rand::thread_rng().gen_range(1..room.pos.w-1),
                         y: rand::thread_rng().gen_range(1..room.pos.h-1),
                         content: Content::Item(Item::random())
@@ -142,7 +141,6 @@ fn main() -> Result<(), ()>{
                     if room.pos != position.room {
                         contents[y][x].push(Object {
                             hidden: random(),
-                            removed: false,
                             x: rand::thread_rng().gen_range(1..room.pos.w-1),
                             y: rand::thread_rng().gen_range(1..room.pos.h-1),
                             content: Content::Enemy(Enemy::random())
@@ -197,15 +195,7 @@ fn main() -> Result<(), ()>{
             encounter = None;
         }
 
-        for row in &grid {
-            for column in row {
-                if let Some(room) = column {
-                    queue_room(&mut stdout, room, &position);
-                }
-            }
-        }
         queue_menu(&mut stdout, &player, width, height);
-        queue_position!(stdout, position);
         if let Some(i) = encounter {
             if enc_started {
                 queue_rect(&mut stdout, &frame);
@@ -218,6 +208,15 @@ fn main() -> Result<(), ()>{
                 }
             } else {unreachable!("should not be able to go outside of a room")};
             queue_enemy_encounter(&mut stdout, &frame, &enemy, &player, &combat);
+        } else {
+            for row in &grid {
+                for column in row {
+                    if let Some(room) = column {
+                        queue_room(&mut stdout, room, &position);
+                    }
+                }
+            }
+            queue_position!(stdout, position);
         }
         stdout.flush().unwrap();
         // rendering -----------------------------------------------------------
@@ -232,8 +231,8 @@ fn main() -> Result<(), ()>{
                             KeyCode::Char('q') => {break;}
                             KeyCode::Char('1') => {combat.action = CMove::Attack}
                             KeyCode::Char('2') => {combat.action = CMove::Block}
-                            KeyCode::Char('3') => {combat.action = CMove::Dodge}
-                            KeyCode::Char('4') => {combat.action = CMove::Buff}
+                            KeyCode::Char('3') => {combat.action = CMove::Buff}
+                            KeyCode::Char('4') => {combat.action = CMove::Dodge}
                             KeyCode::Char('5') => {combat.action = CMove::Run}
                             _ => {combat.action = CMove::NONE}
                         }
@@ -269,51 +268,49 @@ fn main() -> Result<(), ()>{
                 let p_x = (position.x - position.room.x) as i16;
                 let p_y = (position.y - position.room.y) as i16;
                 for (o, obj) in room.contents.iter().enumerate() {
-                    if !obj.removed {
-                        let o_x = obj.x as i16;
-                        let o_y = obj.y as i16;
-                        if o_x == p_x && o_y == p_y {
-                            match obj.content {
-                                Content::Item(item) => {
-                                    match item.effect {
-                                        Stat::NONE => unreachable!("`NONE` variant of `Stat` should not be accessable here"),
-                                        Stat::__Count => unreachable!("`__Count` variant of `Stat` should never be constructed"),
-                                        Stat::HP => { item_to_drop = Some(o);
-                                            player.hp += item.value;
-                                        }
-                                        Stat::DEF => { item_to_drop = Some(o);
-                                            player.def += item.value;
-                                        }
-                                        Stat::ATK => { item_to_drop = Some(o);
-                                            player.atk += item.value;
-                                        }
-                                        Stat::GOLD => { item_to_drop = Some(o);
-                                            player.gold += item.value;
-                                        }
-                                        Stat::EXP => { item_to_drop = Some(o);
-                                            player.exp += item.value;
-                                        }
+                    let o_x = obj.x as i16;
+                    let o_y = obj.y as i16;
+                    if o_x == p_x && o_y == p_y {
+                        match obj.content {
+                            Content::Item(item) => {
+                                match item.effect {
+                                    Stat::NONE => unreachable!("`NONE` variant of `Stat` should not be accessable here"),
+                                    Stat::__Count => unreachable!("`__Count` variant of `Stat` should never be constructed"),
+                                    Stat::HP => { item_to_drop = Some(o);
+                                        player.hp += item.value;
+                                    }
+                                    Stat::DEF => { item_to_drop = Some(o);
+                                        player.def += item.value;
+                                    }
+                                    Stat::ATK => { item_to_drop = Some(o);
+                                        player.atk += item.value;
+                                    }
+                                    Stat::GOLD => { item_to_drop = Some(o);
+                                        player.gold += item.value;
+                                    }
+                                    Stat::EXP => { item_to_drop = Some(o);
+                                        player.exp += item.value;
                                     }
                                 }
-                                Content::Enemy(_) => {if encounter == None {enc_started = true; encounter = Some(o)}}
                             }
-                        } else {
-                            if let Content::Enemy(_) = &obj.content {
-                                if random() || random() {
-                                    let mut next_pos = Point {x: obj.x, y: obj.y};
-                                    if p_y.abs_diff(o_y) > p_x.abs_diff(o_x) {
-                                        match (p_y-o_y) > 0 {
-                                            true => next_pos.y += 1,
-                                            false => next_pos.y -= 1
-                                        }
-                                    } else {
-                                        match (p_x-o_x) > 0 {
-                                            true => next_pos.x += 1,
-                                            false => next_pos.x -= 1
-                                        }
+                            Content::Enemy(_) => {if encounter == None {enc_started = true; encounter = Some(o)}}
+                        }
+                    } else {
+                        if let Content::Enemy(_) = &obj.content {
+                            if random() || random() {
+                                let mut next_pos = Point {x: obj.x, y: obj.y};
+                                if p_y.abs_diff(o_y) > p_x.abs_diff(o_x) {
+                                    match (p_y-o_y) > 0 {
+                                        true => next_pos.y += 1,
+                                        false => next_pos.y -= 1
                                     }
-                                    enemies_to_move.push((o, next_pos));
+                                } else {
+                                    match (p_x-o_x) > 0 {
+                                        true => next_pos.x += 1,
+                                        false => next_pos.x -= 1
+                                    }
                                 }
+                                enemies_to_move.push((o, next_pos));
                             }
                         }
                     }
@@ -414,8 +411,8 @@ const ENCOUNTER_MSG: &str = "Fighting the ";
 const PLAYER: &str = " Player: ";
 const MENU1: &str = "[1] Attack";
 const MENU2: &str = "[2] Block";
-const MENU3: &str = "[3] Dodge";
-const MENU4: &str = "[4] Buff up";
+const MENU3: &str = "[3] Buff up";
+const MENU4: &str = "[4] Dodge";
 const MENU5: &str = "[5] Run";
 const LVL2: &str = " (lvl 2+)";
 fn queue_enemy_encounter(stdout: &mut Stdout, frame: &Rect, enemy: &Enemy, player: &Player, combat: &Combat) {
@@ -440,11 +437,12 @@ fn queue_enemy_encounter(stdout: &mut Stdout, frame: &Rect, enemy: &Enemy, playe
            Print(format!("{}", MENU2)),
            MoveTo(frame.x +(frame.w-11)/2, frame.y+frame.h-7),
            Print(format!("{}", MENU3)),
-           MoveTo(frame.x +(frame.w-11)/2, frame.y+frame.h-6),
-           Print(format!("{}", MENU4)),
            Print(format!("{}", if player.lvl < 2 {
                LVL2
            } else {""})),
+
+           MoveTo(frame.x +(frame.w-11)/2, frame.y+frame.h-6),
+           Print(format!("{}", MENU4)),
            MoveTo(frame.x +(frame.w-11)/2, frame.y+frame.h-5),
            Print(format!("{}", MENU5)),
 
@@ -527,27 +525,25 @@ fn queue_rect_cleanup(stdout: &mut Stdout, rect: &Rect) {
 
 fn queue_room(stdout: &mut Stdout, room: &Room, position: &Position) {
     for obj in &room.contents {
-        if !obj.removed {
-            queue!(stdout, MoveTo(room.pos.x+obj.x, room.pos.y+obj.y)).unwrap();
-            if obj.hidden && room.pos != position.room {queue!(stdout, Print(CHAR_HIDDEN)).unwrap()}
-            else {
-                match obj.content {
-                    Content::Item(item) => {
-                        match item.effect {
-                            Stat::NONE => panic!("I don't think this should ever happen"),
-                            Stat::__Count => panic!("This should never happen"),
-                            _ => queue!(stdout, Print(CHAR_ITEM)).unwrap(),
-                        }
+        queue!(stdout, MoveTo(room.pos.x+obj.x, room.pos.y+obj.y)).unwrap();
+        if obj.hidden && room.pos != position.room {queue!(stdout, Print(CHAR_HIDDEN)).unwrap()}
+        else {
+            match obj.content {
+                Content::Item(item) => {
+                    match item.effect {
+                        Stat::NONE => panic!("I don't think this should ever happen"),
+                        Stat::__Count => panic!("This should never happen"),
+                        _ => queue!(stdout, Print(CHAR_ITEM)).unwrap(),
                     }
-                    Content::Enemy(enemy) => {
-                        match enemy.kind {
-                            EnemyKind::NONE => panic!("I don't think this should ever happen"),
-                            EnemyKind::__Count => panic!("This should never happen"),
-                            EnemyKind::Goblin => queue!(stdout, Print(CHAR_ENEMY_GOBLIN)).unwrap(),
-                            EnemyKind::Ogre => queue!(stdout, Print(CHAR_ENEMY_OGRE)).unwrap(),
-                            EnemyKind::Skeleton => queue!(stdout, Print(CHAR_ENEMY_SKELETON)).unwrap(),
-                            EnemyKind::Zombie => queue!(stdout, Print(CHAR_ENEMY_ZOMBIE)).unwrap(),
-                        }
+                }
+                Content::Enemy(enemy) => {
+                    match enemy.kind {
+                        EnemyKind::NONE => panic!("I don't think this should ever happen"),
+                        EnemyKind::__Count => panic!("This should never happen"),
+                        EnemyKind::Goblin => queue!(stdout, Print(CHAR_ENEMY_GOBLIN)).unwrap(),
+                        EnemyKind::Ogre => queue!(stdout, Print(CHAR_ENEMY_OGRE)).unwrap(),
+                        EnemyKind::Skeleton => queue!(stdout, Print(CHAR_ENEMY_SKELETON)).unwrap(),
+                        EnemyKind::Zombie => queue!(stdout, Print(CHAR_ENEMY_ZOMBIE)).unwrap(),
                     }
                 }
             }

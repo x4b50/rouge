@@ -38,7 +38,6 @@ pub struct Index {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Object {
     pub hidden: bool,
-    pub removed: bool,
     pub x: u16,
     pub y: u16,
     pub content: Content
@@ -47,7 +46,7 @@ pub struct Object {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Content {
     Item(Item),
-    Enemy(Enemy)
+    Enemy(Enemy),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
