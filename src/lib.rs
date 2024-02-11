@@ -1,4 +1,5 @@
 use rand::{Rng, random};
+use core::panic;
 use std::io::Stdout;
 use crossterm::{cursor::{MoveTo, MoveRight}, queue, style::Print};
 
@@ -63,15 +64,15 @@ pub enum Stat {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Item {
     pub effect: Stat,
-    pub value: i32,
+    pub value: i16,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Enemy {
     pub kind: EnemyKind,
-    pub hp: i32,
-    pub def: i32,
-    pub atk: i32,
+    pub hp: i16,
+    pub def: i16,
+    pub atk: i16,
     pub loot: Item,
 }
 
@@ -94,29 +95,46 @@ pub struct Rect {
 }
 
 gen_menu!(struct Player {
-    lvl: i32,
-    exp: i32,
-    hp: i32,
-    def: i32,
-    atk: i32,
-    gold: i32,
+    lvl: i16,
+    exp: i16,
+    hp: i16,
+    def: i16,
+    atk: i16,
+    gold: i16,
 });
 
+pub struct Combat {
+    pub blocks: i16,
+    pub buffs: i16,
+    pub dodge: bool,
+    pub action: CMove,
+}
+
+#[derive(PartialEq)]
 pub enum Move {
     NONE,
     R,
-    U,
-    D,
     L,
-    // ...
+    D,
+    U,
+}
+
+#[derive(PartialEq)]
+pub enum CMove {
+    NONE,
+    Attack,
+    Block,
+    Dodge,
+    Buff,
+    Run,
 }
 
 impl Player {
     pub fn random() -> Player {
         Player {
-            hp: rand::thread_rng().gen_range(10..=25),
-            def: rand::thread_rng().gen_range(1..=5),
-            atk: rand::thread_rng().gen_range(1..=5),
+            hp: rand::thread_rng().gen_range(15..=25),
+            def: rand::thread_rng().gen_range(3..11),
+            atk: rand::thread_rng().gen_range(3..11),
             gold: 0,
             exp: 0,
             lvl: 1,
@@ -132,7 +150,7 @@ impl Item {
                 std::mem::transmute::<u8, Stat>
                     (rand::thread_rng().gen_range(1..Stat::__Count as u8))
             },
-            value: rand::thread_rng().gen_range(1..10)
+            value: rand::thread_rng().gen_range(3..7)
         }
     }
 }
@@ -145,8 +163,8 @@ impl Enemy {
                 std::mem::transmute
                     (rand::thread_rng().gen_range(1..EnemyKind::__Count as u8))
             },
-            hp: rand::thread_rng().gen_range(3..10),
-            def: rand::thread_rng().gen_range(3..10),
+            hp: rand::thread_rng().gen_range(5..15),
+            def: rand::thread_rng().gen_range(5..10),
             atk: rand::thread_rng().gen_range(3..10),
             loot: if random() && random() {
                 Item::random()
@@ -159,6 +177,29 @@ impl Enemy {
     }
 }
 
+impl EnemyKind {
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            EnemyKind::NONE => panic!("`to_str` should never be called on NONE"),
+            EnemyKind::__Count => panic!("`to_str` should never be called on __Count"),
+            EnemyKind::Goblin => &"Goblin",
+            EnemyKind::Ogre => &"Ogre",
+            EnemyKind::Skeleton => &"Skeleton",
+            EnemyKind::Zombie => &"Zombie",
+        }
+    }
+}
+
+impl Combat {
+    pub fn new() -> Combat {
+        Combat {
+            blocks: 0,
+            buffs: 0,
+            dodge: false,
+            action: CMove::NONE,
+        }
+    }
+}
 
 pub mod macros {
     #[macro_export]

@@ -23,13 +23,22 @@ const ITEMS_MIN: u32 = ITEMS_MAX/2;
 const MONSTERS_MAX: u32 = MIN_ROOM_COUNT;
 const MONSTERS_MIN: u32 = MONSTERS_MAX/2;
 
+const MULT_ATK: i16 = 3;
+const MULT_DEF: i16 = 3;
+
 fn main() -> Result<(), ()>{
     let mut stdout = stdout();
     let (width, height) = terminal::size().unwrap();
 
     if width < 80 {exit!(stdout, "Width of terminal window should be at least 80 characters");}
-    if height < 30 {exit!(stdout, "Height of terminal window should be at least 80 characters");}
+    if height < 42 {exit!(stdout, "Height of terminal window should be at least 42 characters");}
     let height = height-2;
+    let frame = Rect {
+        x: width/4,
+        y: height/3,
+        w: width/2,
+        h: height/3,
+    };
 
     let mut player = Player::random();
     let mut grid: [[Option<Room>;ROOMS_X as usize];ROOMS_Y as usize] = Default::default();
@@ -163,9 +172,31 @@ fn main() -> Result<(), ()>{
     }
     queue_hallways(&mut stdout, &hs_present, &hallways);
 
-    let mut moved = Move::NONE;
+    let mut moved;
+    let mut combat = Combat::new();
+    let mut encounter = None;
+    let mut enc_started = false;
+    let mut enc_ended = false;
     loop {
+        let y = (position.y *ROOMS_Y/height) as usize;
+        let x = (position.x *ROOMS_X/width) as usize;
+
         // rendering -----------------------------------------------------------
+        if enc_ended {
+            queue_rect_cleanup(&mut stdout, &frame);
+            for row in &grid {
+                for column in row {
+                    if let Some(room) = column {
+                        queue_rect(&mut stdout, &room.pos);
+                    }
+                }
+            }
+            queue_hallways(&mut stdout, &hs_present, &hallways);
+            combat = Combat::new();
+            enc_ended = false;
+            encounter = None;
+        }
+
         for row in &grid {
             for column in row {
                 if let Some(room) = column {
@@ -175,20 +206,46 @@ fn main() -> Result<(), ()>{
         }
         queue_menu(&mut stdout, &player, width, height);
         queue_position!(stdout, position);
+        if let Some(i) = encounter {
+            if enc_started {
+                queue_rect(&mut stdout, &frame);
+                enc_started = false;
+            }
+            let enemy = if let Some(room) = &grid[y][x] {
+                match (room.contents[i] as Object).content {
+                    Content::Enemy(e) => e,
+                    Content::Item(_) => unreachable!("cannot fight an item"),
+                }
+            } else {unreachable!("should not be able to go outside of a room")};
+            queue_enemy_encounter(&mut stdout, &frame, &enemy, &player, &combat);
+        }
         stdout.flush().unwrap();
         // rendering -----------------------------------------------------------
 
         // events --------------------------------------------------------------
+        moved = Move::NONE;
         if let Ok(e) = event::read() {
             match e {
                 Event::Key(k) => {
-                    match k.code {
-                        KeyCode::Char('q') => {break;}
-                        KeyCode::Char('h') => {moved = Move::L}
-                        KeyCode::Char('j') => {moved = Move::D}
-                        KeyCode::Char('k') => {moved = Move::U}
-                        KeyCode::Char('l') => {moved = Move::R}
-                        _ => {moved = Move::NONE}
+                    if let Some(_) = encounter {
+                        match k.code {
+                            KeyCode::Char('q') => {break;}
+                            KeyCode::Char('1') => {combat.action = CMove::Attack}
+                            KeyCode::Char('2') => {combat.action = CMove::Block}
+                            KeyCode::Char('3') => {combat.action = CMove::Dodge}
+                            KeyCode::Char('4') => {combat.action = CMove::Buff}
+                            KeyCode::Char('5') => {combat.action = CMove::Run}
+                            _ => {combat.action = CMove::NONE}
+                        }
+                    } else {
+                        match k.code {
+                            KeyCode::Char('q') => {break;}
+                            KeyCode::Char('h') => {moved = Move::L}
+                            KeyCode::Char('j') => {moved = Move::D}
+                            KeyCode::Char('k') => {moved = Move::U}
+                            KeyCode::Char('l') => {moved = Move::R}
+                            _ => {moved = Move::NONE}
+                        }
                     }
                 }
                 _ => {}
@@ -207,78 +264,143 @@ fn main() -> Result<(), ()>{
 
         let mut item_to_drop = None;
         let mut enemies_to_move = vec![];
-        let y = (position.y *ROOMS_Y/height) as usize;
-        let x = (position.x *ROOMS_X/width) as usize;
-        if let Some(room) = &mut grid[y][x] {
-            for (o, obj) in room.contents.iter().enumerate() {
-                if !obj.removed {
-                    let p_x = (position.x - position.room.x) as i32;
-                    let p_y = (position.y - position.room.y) as i32;
-                    let o_x = obj.x as i32;
-                    let o_y = obj.y as i32;
-                    if o_x == p_x && o_y == p_y {
-                        match obj.content {
-                            Content::Item(item) => {
-                                match item.effect {
-                                    Stat::NONE => unreachable!("`NONE` variant of `Stat` should not be accessable here"),
-                                    Stat::__Count => unreachable!("`__Count` variant of `Stat` should never be constructed"),
-                                    Stat::HP => { item_to_drop = Some(o);
-                                        player.hp += item.value;
-                                    }
-                                    Stat::DEF => { item_to_drop = Some(o);
-                                        player.def += item.value;
-                                    }
-                                    Stat::ATK => { item_to_drop = Some(o);
-                                        player.atk += item.value;
-                                    }
-                                    Stat::GOLD => { item_to_drop = Some(o);
-                                        player.gold += item.value;
-                                    }
-                                    Stat::EXP => { item_to_drop = Some(o);
-                                        player.exp += item.value;
-                                    }
-                                }
-                            }
-                            Content::Enemy(_) => {}
-                        }
-                    } else {
-                        if let Content::Enemy(_) = &obj.content {
-                            if random() || random() {
-                                let mut next_pos = Point {x: obj.x, y: obj.y};
-                                if p_y.abs_diff(o_y) > p_x.abs_diff(o_x) {
-                                    match (p_y-o_y) > 0 {
-                                        true => next_pos.y += 1,
-                                        false => next_pos.y -= 1
-                                    }
-                                } else {
-                                    match (p_x-o_x) > 0 {
-                                        true => next_pos.x += 1,
-                                        false => next_pos.x -= 1
-                                    }
-                                }
-                                // check for collisions with other objects
-                                'once: loop {
-                                    for obj in &room.contents {
-                                        if obj.x == next_pos.x && obj.y == next_pos.y {
-                                            break 'once;
+        if moved != Move::NONE {
+            if let Some(room) = &mut grid[y][x] {
+                let p_x = (position.x - position.room.x) as i16;
+                let p_y = (position.y - position.room.y) as i16;
+                for (o, obj) in room.contents.iter().enumerate() {
+                    if !obj.removed {
+                        let o_x = obj.x as i16;
+                        let o_y = obj.y as i16;
+                        if o_x == p_x && o_y == p_y {
+                            match obj.content {
+                                Content::Item(item) => {
+                                    match item.effect {
+                                        Stat::NONE => unreachable!("`NONE` variant of `Stat` should not be accessable here"),
+                                        Stat::__Count => unreachable!("`__Count` variant of `Stat` should never be constructed"),
+                                        Stat::HP => { item_to_drop = Some(o);
+                                            player.hp += item.value;
+                                        }
+                                        Stat::DEF => { item_to_drop = Some(o);
+                                            player.def += item.value;
+                                        }
+                                        Stat::ATK => { item_to_drop = Some(o);
+                                            player.atk += item.value;
+                                        }
+                                        Stat::GOLD => { item_to_drop = Some(o);
+                                            player.gold += item.value;
+                                        }
+                                        Stat::EXP => { item_to_drop = Some(o);
+                                            player.exp += item.value;
                                         }
                                     }
-                                    queue_enemy_cleanup!(stdout, position, obj);
+                                }
+                                Content::Enemy(_) => {if encounter == None {enc_started = true; encounter = Some(o)}}
+                            }
+                        } else {
+                            if let Content::Enemy(_) = &obj.content {
+                                if random() || random() {
+                                    let mut next_pos = Point {x: obj.x, y: obj.y};
+                                    if p_y.abs_diff(o_y) > p_x.abs_diff(o_x) {
+                                        match (p_y-o_y) > 0 {
+                                            true => next_pos.y += 1,
+                                            false => next_pos.y -= 1
+                                        }
+                                    } else {
+                                        match (p_x-o_x) > 0 {
+                                            true => next_pos.x += 1,
+                                            false => next_pos.x -= 1
+                                        }
+                                    }
                                     enemies_to_move.push((o, next_pos));
-                                    break;
                                 }
                             }
                         }
                     }
                 }
+                for enemy in enemies_to_move {
+                    // check for collisions with other objects
+                    'once: loop {
+                        for obj in &room.contents {
+                            if obj.x == enemy.1.x && obj.y == enemy.1.y {
+                                break 'once;
+                            }
+                        }
+                        queue_enemy_cleanup!(stdout, position, room.contents[enemy.0]);
+                        room.contents[enemy.0].x = enemy.1.x;
+                        room.contents[enemy.0].y = enemy.1.y;
+                        if enemy.1.x == p_x as u16 && enemy.1.y == p_y as u16 {enc_started = true; encounter = Some(enemy.0)}
+                        break 'once;
+                    }
+                }
+                if let Some(o) = item_to_drop {
+                    room.contents.remove(o);
+                }
             }
-            for enemy in enemies_to_move {
-                room.contents[enemy.0].x = enemy.1.x;
-                room.contents[enemy.0].y = enemy.1.y;
+        }
+
+        if combat.action != CMove::NONE {
+            if let Some(i) = encounter {
+                'once: loop {
+                    let room = if let Some(room) = &mut grid[y][x] {
+                        room
+                    } else {unreachable!("should not be able to go outside of a room")};
+                    let enemy = match &mut room.contents[i].content {
+                        Content::Enemy(e) => e,
+                        Content::Item(_) => unreachable!("cannot fight an item"),
+                    };
+
+                    match combat.action {
+                        CMove::NONE => {},
+                        CMove::Attack => {if combat.buffs > 0 {
+                            enemy.hp -= player.atk - enemy.def/MULT_DEF
+                        } else {
+                            enemy.hp -= player.atk/MULT_ATK - enemy.def/MULT_DEF
+                        }},
+                        CMove::Block => {combat.blocks += player.def/10 +2},
+                        CMove::Dodge => {combat.dodge = true},
+                        CMove::Buff => {combat.buffs += player.lvl},
+                        CMove::Run => {enc_ended = true; break 'once}
+                    }
+
+                    if enemy.hp <= 0 {
+                        enc_ended = true;
+                        match enemy.loot.effect {
+                            Stat::NONE => unreachable!("enemy should not drop `NONE` loot"),
+                            Stat::__Count => unreachable!("item `__Count` should never be constructed"),
+                            Stat::HP => player.hp += enemy.loot.value,
+                            Stat::DEF => player.def += enemy.loot.value,
+                            Stat::ATK => player.atk += enemy.loot.value,
+                            Stat::EXP => player.exp += enemy.loot.value,
+                            Stat::GOLD => player.gold += enemy.loot.value,
+                        }
+                        room.contents.remove(i);
+                        break 'once
+                    }
+
+                    if combat.dodge {}
+                    else if combat.blocks > 0 && enemy.atk - player.def > 0{
+                        player.hp -= enemy.atk - player.def
+                    } else if combat.blocks == 0 && enemy.atk - player.def/MULT_DEF > 0{
+                        player.hp -= enemy.atk - player.def/MULT_DEF
+                    }
+                    // TODO: lose if hp <= 0
+                    if combat.blocks > 0 {combat.blocks -= 1}
+                    if combat.blocks > player.lvl {combat.blocks = player.lvl}
+                    if combat.buffs > 0 {combat.buffs -= 1}
+                    combat.dodge = false;
+                    combat.action = CMove::NONE;
+                    break 'once;
+                }
             }
-            if let Some(o) = item_to_drop {
-                room.contents.remove(o);
-            }
+        }
+
+        if player.exp >= 20 {
+            player.lvl += 1;
+            player.hp += 5;
+            player.def += 3;
+            player.atk += 3;
+            player.exp -= 20;
         }
         // logic ---------------------------------------------------------------
     }
@@ -286,6 +408,53 @@ fn main() -> Result<(), ()>{
     execute!(stdout, LeaveAlternateScreen).unwrap();
     terminal::disable_raw_mode().unwrap();
     Ok(())
+}
+
+const ENCOUNTER_MSG: &str = "Fighting the ";
+const PLAYER: &str = " Player: ";
+const MENU1: &str = "[1] Attack";
+const MENU2: &str = "[2] Block";
+const MENU3: &str = "[3] Dodge";
+const MENU4: &str = "[4] Buff up";
+const MENU5: &str = "[5] Run";
+const LVL2: &str = " (lvl 2+)";
+fn queue_enemy_encounter(stdout: &mut Stdout, frame: &Rect, enemy: &Enemy, player: &Player, combat: &Combat) {
+    let str = enemy.kind.to_str();
+    let line = "-".repeat((frame.w as usize-PLAYER.len())/2);
+    let pl_pad = " ".repeat((frame.w as usize-20)/4);
+    let c_pad = " ".repeat((frame.w as usize-20)/3);
+
+    // TODO: automatic padding
+    queue!(stdout,
+           MoveTo(frame.x +(frame.w -ENCOUNTER_MSG.len()as u16 -str.len()as u16)/2, frame.y+1),
+           Print(format!("{}{}", ENCOUNTER_MSG, str)),
+
+           MoveTo(frame.x +(frame.w-16)/2, frame.y+2),
+           Print(format!("atk: {}, def: {}", enemy.atk, enemy.def)),
+           MoveTo(frame.x +(frame.w-11)/2, frame.y+3),
+           Print(format!("hp left: {}  ", enemy.hp)),
+
+           MoveTo(frame.x +(frame.w-11)/2, frame.y+frame.h-9),
+           Print(format!("{}", MENU1)),
+           MoveTo(frame.x +(frame.w-11)/2, frame.y+frame.h-8),
+           Print(format!("{}", MENU2)),
+           MoveTo(frame.x +(frame.w-11)/2, frame.y+frame.h-7),
+           Print(format!("{}", MENU3)),
+           MoveTo(frame.x +(frame.w-11)/2, frame.y+frame.h-6),
+           Print(format!("{}", MENU4)),
+           Print(format!("{}", if player.lvl < 2 {
+               LVL2
+           } else {""})),
+           MoveTo(frame.x +(frame.w-11)/2, frame.y+frame.h-5),
+           Print(format!("{}", MENU5)),
+
+           MoveTo(frame.x+1, frame.y+frame.h-4),
+           Print(format!("{}{}{}", line, PLAYER, "-".repeat(frame.w as usize-line.len() -PLAYER.len()-2))),
+           MoveTo(frame.x+1, frame.y+frame.h-3),
+           Print(format!("{c_pad}blocks: {}{c_pad}buff ups: {}", combat.blocks, combat.buffs)),
+           MoveTo(frame.x+1, frame.y+frame.h-2),
+           Print(format!("{pl_pad}hp: {}{pl_pad}def: {}{pl_pad}atk: {}", player.hp, player.def, player.atk)),
+          ).unwrap();
 }
 
 fn add_hallway(hs_present: &mut [bool], hallways: &mut [Hallway], doors_count: &mut usize,
@@ -329,7 +498,6 @@ fn queue_hallways(stdout: &mut Stdout, hs_present: &[bool], hallways: &[Hallway]
     }
 }
 
-// can be made better
 fn queue_rect(stdout: &mut Stdout, rect: &Rect) {
     for y in 0..rect.h{
         for x in 0..rect.w {
@@ -345,6 +513,15 @@ fn queue_rect(stdout: &mut Stdout, rect: &Rect) {
                        ).unwrap();
             }
         }
+    }
+}
+
+fn queue_rect_cleanup(stdout: &mut Stdout, rect: &Rect) {
+    for y in 0..rect.h{
+        queue!(stdout,
+               MoveTo(rect.x, rect.y+y),
+               Print(" ".repeat(rect.w.into()))
+              ).unwrap();
     }
 }
 
