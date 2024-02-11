@@ -349,9 +349,9 @@ fn main() -> Result<(), ()>{
 
                     match combat.action {
                         CMove::NONE => {},
-                        CMove::Attack => {if combat.buffs > 0 {
+                        CMove::Attack => {if combat.buffs > 0 && player.atk - enemy.def/MULT_DEF > 0 {
                             enemy.hp -= player.atk - enemy.def/MULT_DEF
-                        } else {
+                        } else if combat.buffs == 0 && player.atk/MULT_ATK - enemy.def/MULT_DEF > 0 {
                             enemy.hp -= player.atk/MULT_ATK - enemy.def/MULT_DEF
                         }},
                         CMove::Block => {combat.blocks += player.def/10 +2},
