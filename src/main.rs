@@ -17,6 +17,7 @@ const CHAR_ENEMY_ZOMBIE: char = 'Z';
 const CHAR_ENEMY_SKELETON: char = 'S';
 const CHAR_ENEMY_GOBLIN: char = 'G';
 const CHAR_ENEMY_OGRE: char = 'O';
+const CHAR_ENTRANCE: char = '*';
 
 const ITEMS_MAX: u16 = MIN_ROOM_COUNT*3/4;
 const ITEMS_MIN: u16 = ITEMS_MAX/2;
@@ -151,6 +152,22 @@ fn main() -> Result<(), ()>{
             }
         }
 
+        loop {
+            let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
+            let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
+            if let Some(room) = &grid[y][x] {
+                if room.pos != position.room {
+                    contents[y][x].push(Object {
+                        hidden: false,
+                        x: rand::thread_rng().gen_range(1..room.pos.w-1),
+                        y: rand::thread_rng().gen_range(1..room.pos.h-1),
+                        content: Content::Entrance
+                    });
+                    break;
+                }
+            }
+        }
+
         for y in 0..ROOMS_Y as usize {
             for x in 0..ROOMS_X as usize {
                 if let Some(room) = &mut grid[y][x] {room.contents = contents[y][x].clone();}
@@ -175,7 +192,7 @@ fn main() -> Result<(), ()>{
     let mut encounter = None;
     let mut enc_started = false;
     let mut enc_ended = false;
-    loop {
+    'game: loop {
         let y = (position.y *ROOMS_Y/height) as usize;
         let x = (position.x *ROOMS_X/width) as usize;
 
@@ -205,6 +222,7 @@ fn main() -> Result<(), ()>{
                 match (room.contents[i] as Object).content {
                     Content::Enemy(e) => e,
                     Content::Item(_) => unreachable!("cannot fight an item"),
+                    Content::Entrance => unreachable!("cannot fight an entrance"),
                 }
             } else {unreachable!("should not be able to go outside of a room")};
             queue_enemy_encounter(&mut stdout, &frame, &enemy, &player, &combat);
@@ -294,6 +312,7 @@ fn main() -> Result<(), ()>{
                                 }
                             }
                             Content::Enemy(_) => {if encounter == None {enc_started = true; encounter = Some(o)}}
+                            Content::Entrance => {exit!(stdout, "enter a new level");}
                         }
                     } else {
                         if let Content::Enemy(_) = &obj.content {
@@ -345,6 +364,7 @@ fn main() -> Result<(), ()>{
                     let enemy = match &mut room.contents[i].content {
                         Content::Enemy(e) => e,
                         Content::Item(_) => unreachable!("cannot fight an item"),
+                        Content::Entrance => unreachable!("cannot fight an entrance"),
                     };
 
                     match combat.action {
@@ -381,7 +401,8 @@ fn main() -> Result<(), ()>{
                     } else if combat.blocks == 0 && enemy.atk - player.def/MULT_DEF > 0{
                         player.hp -= enemy.atk - player.def/MULT_DEF
                     }
-                    // TODO: lose if hp <= 0
+                    if player.hp <= 0 {break 'game}
+
                     if combat.blocks > 0 {combat.blocks -= 1}
                     if combat.blocks > player.lvl {combat.blocks = player.lvl}
                     if combat.buffs > 0 {combat.buffs -= 1}
@@ -546,6 +567,7 @@ fn queue_room(stdout: &mut Stdout, room: &Room, position: &Position) {
                         EnemyKind::Zombie => queue!(stdout, Print(CHAR_ENEMY_ZOMBIE)).unwrap(),
                     }
                 }
+                Content::Entrance => queue!(stdout, Print(CHAR_ENTRANCE)).unwrap()
             }
         }
     }

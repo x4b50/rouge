@@ -47,6 +47,7 @@ pub struct Object {
 pub enum Content {
     Item(Item),
     Enemy(Enemy),
+    Entrance,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
