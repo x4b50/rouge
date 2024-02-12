@@ -133,8 +133,8 @@ impl Player {
     pub fn random() -> Player {
         Player {
             hp: rand::thread_rng().gen_range(15..=25),
-            def: rand::thread_rng().gen_range(3..11),
-            atk: rand::thread_rng().gen_range(3..11),
+            def: rand::thread_rng().gen_range(5..13),
+            atk: rand::thread_rng().gen_range(5..13),
             gold: 0,
             exp: 0,
             lvl: 1,
@@ -150,7 +150,7 @@ impl Item {
                 std::mem::transmute::<u8, Stat>
                     (rand::thread_rng().gen_range(1..Stat::__Count as u8))
             },
-            value: rand::thread_rng().gen_range(3..7)
+            value: rand::thread_rng().gen_range(2..7)
         }
     }
 }
@@ -163,9 +163,9 @@ impl Enemy {
                 std::mem::transmute
                     (rand::thread_rng().gen_range(1..EnemyKind::__Count as u8))
             },
-            hp: rand::thread_rng().gen_range(5*mult..15*mult),
-            def: rand::thread_rng().gen_range(5*mult..10*mult),
-            atk: rand::thread_rng().gen_range(3*mult..10*mult),
+            hp: rand::thread_rng().gen_range(7*mult..20*mult),
+            def: rand::thread_rng().gen_range(7*mult-4..10*mult),
+            atk: rand::thread_rng().gen_range(7*mult-4..10*mult),
             loot: if random() && random() {
                 Item::random()
             } else {

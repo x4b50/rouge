@@ -19,7 +19,7 @@ const CHAR_ENEMY_GOBLIN: char = 'G';
 const CHAR_ENEMY_OGRE: char = 'O';
 const CHAR_ENTRANCE: char = '*';
 
-const ITEMS_MAX: u16 = MIN_ROOM_COUNT*3/4;
+const ITEMS_MAX: u16 = MIN_ROOM_COUNT/2;
 const ITEMS_MIN: u16 = ITEMS_MAX/2;
 const MONSTERS_MAX: u16 = MIN_ROOM_COUNT;
 const MONSTERS_MIN: u16 = MONSTERS_MAX*2/3;
@@ -27,7 +27,7 @@ const MONSTERS_MIN: u16 = MONSTERS_MAX*2/3;
 const MULT_ATK: i16 = 3;
 const MULT_DEF: i16 = 3;
 
-fn main() -> Result<(), ()>{
+fn main() -> Result<(), ()> {
     let mut stdout = stdout();
     let (width, height) = terminal::size().unwrap();
 
@@ -42,6 +42,8 @@ fn main() -> Result<(), ()>{
     };
 
     let mut player = Player::random();
+    let mut died = false;
+    let mut exited = false;
 
     'game: loop {
         let mut grid: [[Option<Room>;ROOMS_X as usize];ROOMS_Y as usize] = Default::default();
@@ -248,7 +250,7 @@ fn main() -> Result<(), ()>{
                     Event::Key(k) => {
                         if let Some(_) = encounter {
                             match k.code {
-                                KeyCode::Char('q') => {break 'game;}
+                                KeyCode::Char('q') => {exited = true; break 'game;}
                                 KeyCode::Char('1') => {combat.action = CMove::Attack}
                                 KeyCode::Char('2') => {combat.action = CMove::Block}
                                 KeyCode::Char('3') => {combat.action = CMove::Buff}
@@ -258,7 +260,7 @@ fn main() -> Result<(), ()>{
                             }
                         } else {
                             match k.code {
-                                KeyCode::Char('q') => {break 'game;}
+                                KeyCode::Char('q') => {exited = true; break 'game;}
                                 KeyCode::Char('h') => {moved = Move::L}
                                 KeyCode::Char('j') => {moved = Move::D}
                                 KeyCode::Char('k') => {moved = Move::U}
@@ -379,7 +381,7 @@ fn main() -> Result<(), ()>{
                             CMove::Block => {combat.blocks += player.def/10 +2},
                             CMove::Dodge => {combat.dodge = true},
                             CMove::Buff => {combat.buffs += player.lvl},
-                            CMove::Run => {enc_ended = true; break 'once}
+                            CMove::Run => {player.hp -= player.lvl; enc_ended = true; break 'once}
                         }
 
                         if enemy.hp <= 0 {
@@ -403,11 +405,11 @@ fn main() -> Result<(), ()>{
                         } else if combat.blocks == 0 && enemy.atk - player.def/MULT_DEF > 0{
                             player.hp -= enemy.atk - player.def/MULT_DEF
                         }
-                        if player.hp <= 0 {break 'game}
 
                         if combat.blocks > 0 {combat.blocks -= 1}
                         if combat.blocks > player.lvl {combat.blocks = player.lvl}
                         if combat.buffs > 0 {combat.buffs -= 1}
+                        if combat.buffs > player.lvl {combat.buffs = player.lvl}
                         combat.dodge = false;
                         combat.action = CMove::NONE;
                         break 'once;
@@ -415,11 +417,12 @@ fn main() -> Result<(), ()>{
                 }
             }
 
+            if player.hp <= 0 {died = true; break 'game}
             if player.exp >= 20 {
                 player.lvl += 1;
                 player.hp += 5;
-                player.def += 3;
-                player.atk += 3;
+                player.def += 1;
+                player.atk += 1;
                 player.exp -= 20;
             }
             // logic ---------------------------------------------------------------
@@ -429,6 +432,9 @@ fn main() -> Result<(), ()>{
 
     execute!(stdout, LeaveAlternateScreen).unwrap();
     terminal::disable_raw_mode().unwrap();
+
+    if exited {println!("You have exited having achieved level: {}", player.lvl)}
+    else if died {println!("You have died having achieved level: {}", player.lvl)}
     Ok(())
 }
 
@@ -474,9 +480,9 @@ fn queue_enemy_encounter(stdout: &mut Stdout, frame: &Rect, enemy: &Enemy, playe
            MoveTo(frame.x+1, frame.y+frame.h-4),
            Print(format!("{}{}{}", line, PLAYER, "-".repeat(frame.w as usize-line.len() -PLAYER.len()-2))),
            MoveTo(frame.x+1, frame.y+frame.h-3),
-           Print(format!("{c_pad}blocks: {}{c_pad}buff ups: {}", combat.blocks, combat.buffs)),
+           Print(format!("{c_pad}blocks: {}{c_pad}buff ups: {}  ", combat.blocks, combat.buffs)),
            MoveTo(frame.x+1, frame.y+frame.h-2),
-           Print(format!("{pl_pad}hp: {}{pl_pad}def: {}{pl_pad}atk: {}", player.hp, player.def, player.atk)),
+           Print(format!("{pl_pad}hp: {}{pl_pad}def: {}{pl_pad}atk: {}   ", player.hp, player.def, player.atk)),
           ).unwrap();
 }
 
