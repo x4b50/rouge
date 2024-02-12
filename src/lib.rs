@@ -157,15 +157,15 @@ impl Item {
 
 // TODO: gen different stats based on type, balance a bit
 impl Enemy {
-    pub fn random() -> Enemy {
+    pub fn random(mult: i16) -> Enemy {
         Enemy {
             kind: unsafe {
                 std::mem::transmute
                     (rand::thread_rng().gen_range(1..EnemyKind::__Count as u8))
             },
-            hp: rand::thread_rng().gen_range(5..15),
-            def: rand::thread_rng().gen_range(5..10),
-            atk: rand::thread_rng().gen_range(3..10),
+            hp: rand::thread_rng().gen_range(5*mult..15*mult),
+            def: rand::thread_rng().gen_range(5*mult..10*mult),
+            atk: rand::thread_rng().gen_range(3*mult..10*mult),
             loot: if random() && random() {
                 Item::random()
             } else {
