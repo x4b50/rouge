@@ -19,13 +19,22 @@ const CHAR_ENEMY_GOBLIN: char = 'G';
 const CHAR_ENEMY_OGRE: char = 'O';
 const CHAR_ENTRANCE: char = '*';
 
-const ITEMS_MAX: u16 = MIN_ROOM_COUNT/2;
+const ITEMS_MAX: u16 = MIN_ROOM_COUNT*3/4;
 const ITEMS_MIN: u16 = ITEMS_MAX/2;
 const MONSTERS_MAX: u16 = MIN_ROOM_COUNT;
 const MONSTERS_MIN: u16 = MONSTERS_MAX*2/3;
 
 const MULT_ATK: i16 = 3;
 const MULT_DEF: i16 = 3;
+
+// const COMBAT;
+
+const LEVELUP: &str = "Level up!";
+const PICKUP_HP: &str = "You've picked up a healing kit";
+const PICKUP_DEF: &str = "You've picked up armor";
+const PICKUP_ATK: &str = "You've picked up a weapon";
+const PICKUP_GOLD: &str = "You've picked up gold";
+const PICKUP_EXP: &str = "You've picked up experience points";
 
 fn main() -> Result<(), ()> {
     let mut stdout = stdout();
@@ -196,6 +205,7 @@ fn main() -> Result<(), ()> {
         let mut encounter = None;
         let mut enc_started = false;
         let mut enc_ended = false;
+        let mut notification: Option<&str> = None;
         'lvl: loop {
             let y = (position.y *ROOMS_Y/height) as usize;
             let x = (position.x *ROOMS_X/width) as usize;
@@ -217,6 +227,11 @@ fn main() -> Result<(), ()> {
             }
 
             queue_menu(&mut stdout, &player, width, height);
+            if let Some(n) = notification {
+                queue!(stdout, MoveTo((width-n.len()as u16)/2, height), Print(n)).unwrap();
+                notification = None;
+            }
+
             if let Some(i) = encounter {
                 if enc_started {
                     queue_rect(&mut stdout, &frame);
@@ -300,18 +315,23 @@ fn main() -> Result<(), ()> {
                                         Stat::__Count => unreachable!("`__Count` variant of `Stat` should never be constructed"),
                                         Stat::HP => { item_to_drop = Some(o);
                                             player.hp += item.value;
+                                            notification = Some(PICKUP_HP)
                                         }
                                         Stat::DEF => { item_to_drop = Some(o);
                                             player.def += item.value;
+                                            notification = Some(PICKUP_DEF)
                                         }
                                         Stat::ATK => { item_to_drop = Some(o);
                                             player.atk += item.value;
+                                            notification = Some(PICKUP_ATK)
                                         }
                                         Stat::GOLD => { item_to_drop = Some(o);
                                             player.gold += item.value;
+                                            notification = Some(PICKUP_GOLD)
                                         }
                                         Stat::EXP => { item_to_drop = Some(o);
                                             player.exp += item.value;
+                                            notification = Some(PICKUP_EXP)
                                         }
                                     }
                                 }
@@ -389,11 +409,11 @@ fn main() -> Result<(), ()> {
                             match enemy.loot.effect {
                                 Stat::NONE => unreachable!("enemy should not drop `NONE` loot"),
                                 Stat::__Count => unreachable!("item `__Count` should never be constructed"),
-                                Stat::HP => player.hp += enemy.loot.value,
-                                Stat::DEF => player.def += enemy.loot.value,
-                                Stat::ATK => player.atk += enemy.loot.value,
-                                Stat::EXP => player.exp += enemy.loot.value,
-                                Stat::GOLD => player.gold += enemy.loot.value,
+                                Stat::HP => {player.hp += enemy.loot.value; notification = Some(PICKUP_HP)}
+                                Stat::DEF => {player.def += enemy.loot.value; notification = Some(PICKUP_DEF)}
+                                Stat::ATK => {player.atk += enemy.loot.value; notification = Some(PICKUP_ATK)}
+                                Stat::EXP => {player.exp += enemy.loot.value; notification = Some(PICKUP_EXP)}
+                                Stat::GOLD => {player.gold += enemy.loot.value; notification = Some(PICKUP_GOLD)}
                             }
                             room.contents.remove(i);
                             break 'once
@@ -424,6 +444,7 @@ fn main() -> Result<(), ()> {
                 player.def += 1;
                 player.atk += 1;
                 player.exp -= 20;
+                notification = Some(LEVELUP);
             }
             // logic ---------------------------------------------------------------
         }
