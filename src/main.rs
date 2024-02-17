@@ -131,55 +131,18 @@ fn main() -> Result<(), ()> {
             let mut contents: [[Vec<Object>; ROOMS_X as usize]; ROOMS_Y as usize] = Default::default();
             let items_cout = rand::thread_rng().gen_range(ITEMS_MIN..=ITEMS_MAX);
             for _ in 0..items_cout {
-                loop {
-                    let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
-                    let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
-                    if let Some(room) = &grid[y][x] {
-                        contents[y][x].push(Object {
-                            hidden: random(),
-                            x: rand::thread_rng().gen_range(1..room.pos.w-1),
-                            y: rand::thread_rng().gen_range(1..room.pos.h-1),
-                            content: Content::Item(Item::random())
-                        });
-                        break;
-                    }
-                }
+                gen_content!(grid, contents, position,
+                             Content::Item(Item::random()), true);
             }
 
             let enemies_count = rand::thread_rng().gen_range(MONSTERS_MIN..=MONSTERS_MAX);
             for _ in 0..enemies_count {
-                loop {
-                    let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
-                    let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
-                    if let Some(room) = &grid[y][x] {
-                        if room.pos != position.room {
-                            contents[y][x].push(Object {
-                                hidden: random(),
-                                x: rand::thread_rng().gen_range(1..room.pos.w-1),
-                                y: rand::thread_rng().gen_range(1..room.pos.h-1),
-                                content: Content::Enemy(Enemy::random(player.lvl))
-                            });
-                            break;
-                        }
-                    }
-                }
+                gen_content!(grid, contents, position,
+                             Content::Enemy(Enemy::random(player.lvl)), false);
             }
 
-            loop {
-                let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
-                let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
-                if let Some(room) = &grid[y][x] {
-                    if room.pos != position.room {
-                        contents[y][x].push(Object {
-                            hidden: false,
-                            x: rand::thread_rng().gen_range(1..room.pos.w-1),
-                            y: rand::thread_rng().gen_range(1..room.pos.h-1),
-                            content: Content::Entrance
-                        });
-                        break;
-                    }
-                }
-            }
+            gen_content!(grid, contents, position,
+                         Content::Entrance, false);
 
             for y in 0..ROOMS_Y as usize {
                 for x in 0..ROOMS_X as usize {

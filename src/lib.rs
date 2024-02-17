@@ -258,6 +258,32 @@ pub mod macros {
     }
 
     #[macro_export]
+    macro_rules! gen_content {
+        ($grid:expr, $conts:expr, $pos:expr, $cont:expr, $can_gen_in_start:expr) => {
+            loop {
+                let y = rand::thread_rng().gen_range(0..ROOMS_Y) as usize;
+                let x = rand::thread_rng().gen_range(0..ROOMS_X) as usize;
+                if let Some(room) = &$grid[y][x] {
+                    if room.pos != $pos.room || $can_gen_in_start {
+                        let cx = rand::thread_rng().gen_range(1..room.pos.w-1);
+                        let cy = rand::thread_rng().gen_range(1..room.pos.h-1);
+                        for item in &$conts[y][x] {
+                            if item.x == cx && item.y == cy {continue}
+                        }
+                        $conts[y][x].push(Object {
+                            hidden: false,
+                            x: cx,
+                            y: cy,
+                            content: $cont
+                        });
+                        break;
+                    }
+                }
+            }
+        };
+    }
+
+    #[macro_export]
     macro_rules! check_move {
         ($stdout:expr, $pos:expr, $grid:expr, $hs_p:expr, $hs:expr, $chr:expr, $axis:tt, $sign:tt) => {
             let next_pos = match stringify!($axis) {

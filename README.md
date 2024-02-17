@@ -13,6 +13,6 @@ A simple rouge-like terminal game.
 - [ ] add some kind of end goal
 - [x] notify people of when they get something
 - [x] check for position conflicts when moving enemies
-- [ ] check for position conflicts when generating items
+- [x] check for position conflicts when generating items
 - [ ] add obstacle item
 - [x] when leaving the room if hidden enemy moves it visualy duplicates
