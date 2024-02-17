@@ -259,7 +259,7 @@ pub mod macros {
 
     #[macro_export]
     macro_rules! check_move {
-        ($stdout:expr, $pos:expr, $grid:expr, $hs_p:expr, $hs:expr, $axis:tt, $sign:tt) => {
+        ($stdout:expr, $pos:expr, $grid:expr, $hs_p:expr, $hs:expr, $chr:expr, $axis:tt, $sign:tt) => {
             let next_pos = match stringify!($axis) {
                 "x" => Point{x: $pos.x $sign 1, y: $pos.y},
                 "y" => Point{x: $pos.x, y: $pos.y $sign 1},
@@ -292,6 +292,7 @@ pub mod macros {
                             if let Some(room) = &$grid[idx.y][idx.x] {
                                 $pos.room = room.pos.clone();
                             } else {unreachable!("hallways should hold indexes of valid rooms")}
+                            $chr = true;
                             break
                         }
                     }

@@ -19,7 +19,7 @@ const CHAR_ENEMY_GOBLIN: char = 'G';
 const CHAR_ENEMY_OGRE: char = 'O';
 const CHAR_ENTRANCE: char = '*';
 
-const ITEMS_MAX: u16 = MIN_ROOM_COUNT*3/4;
+const ITEMS_MAX: u16 = MIN_ROOM_COUNT/2;
 const ITEMS_MIN: u16 = ITEMS_MAX/2;
 const MONSTERS_MAX: u16 = MIN_ROOM_COUNT;
 const MONSTERS_MIN: u16 = MONSTERS_MAX*2/3;
@@ -201,6 +201,7 @@ fn main() -> Result<(), ()> {
         queue_hallways(&mut stdout, &hs_present, &hallways);
 
         let mut moved;
+        let mut changed_room;
         let mut combat = Combat::new();
         let mut encounter = None;
         let mut enc_started = false;
@@ -260,6 +261,7 @@ fn main() -> Result<(), ()> {
 
             // events --------------------------------------------------------------
             moved = Move::NONE;
+            changed_room = false;
             if let Ok(e) = event::read() {
                 match e {
                     Event::Key(k) => {
@@ -292,15 +294,15 @@ fn main() -> Result<(), ()> {
             // logic ---------------------------------------------------------------
             match moved {
                 Move::NONE => {}
-                Move::R => {check_move!(stdout, position, grid, hs_present, hallways, x, +);}
-                Move::L => {check_move!(stdout, position, grid, hs_present, hallways, x, -);}
-                Move::D => {check_move!(stdout, position, grid, hs_present, hallways, y, +);}
-                Move::U => {check_move!(stdout, position, grid, hs_present, hallways, y, -);}
+                Move::R => {check_move!(stdout, position, grid, hs_present, hallways, changed_room, x, +);}
+                Move::L => {check_move!(stdout, position, grid, hs_present, hallways, changed_room, x, -);}
+                Move::D => {check_move!(stdout, position, grid, hs_present, hallways, changed_room, y, +);}
+                Move::U => {check_move!(stdout, position, grid, hs_present, hallways, changed_room, y, -);}
             }
 
             let mut item_to_drop = None;
             let mut enemies_to_move = vec![];
-            if moved != Move::NONE {
+            if moved != Move::NONE && !changed_room {
                 if let Some(room) = &mut grid[y][x] {
                     let p_x = (position.x - position.room.x) as i16;
                     let p_y = (position.y - position.room.y) as i16;

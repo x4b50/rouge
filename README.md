@@ -11,8 +11,8 @@ A simple rouge-like terminal game.
 - [ ] make gold useful
 - [ ] balance things
 - [ ] add some kind of end goal
-- [ ] notify people of when they get something
+- [x] notify people of when they get something
 - [x] check for position conflicts when moving enemies
 - [ ] check for position conflicts when generating items
 - [ ] add obstacle item
-- [ ] when leaving the room if hidden enemy moves it visualy duplicates
+- [x] when leaving the room if hidden enemy moves it visualy duplicates
