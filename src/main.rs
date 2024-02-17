@@ -419,8 +419,8 @@ fn main() -> Result<(), ()> {
     execute!(stdout, LeaveAlternateScreen).unwrap();
     terminal::disable_raw_mode().unwrap();
 
-    if exited {println!("You have exited having achieved level: {}", player.lvl)}
-    else if died {println!("You have died having achieved level: {}", player.lvl)}
+    if exited {println!("You have exited having achieved level {}", player.lvl)}
+    else if died {println!("You have died having achieved level {}", player.lvl)}
     Ok(())
 }
 

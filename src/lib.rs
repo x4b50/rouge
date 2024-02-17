@@ -271,7 +271,7 @@ pub mod macros {
                             if item.x == cx && item.y == cy {continue}
                         }
                         $conts[y][x].push(Object {
-                            hidden: false,
+                            hidden: if $cont == Content::Entrance {false} else {random()},
                             x: cx,
                             y: cy,
                             content: $cont
