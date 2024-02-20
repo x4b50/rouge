@@ -308,19 +308,17 @@ pub mod macros {
                 let hw_idx = (0.5 $sign 0.5) as usize;
                 for i in 0..HALLWAYS_SIZE {
                     if !$hs_p[i] {break}
-                    else {
-                        if next_pos == $hs[i].entr[1-hw_idx] {
-                            queue_position_cleanup!($stdout, $pos);
-                            $pos.x = $hs[i].entr[hw_idx].x;
-                            $pos.y = $hs[i].entr[hw_idx].y;
-                            $pos.$axis = $pos.$axis $sign 1;
-                            let idx = $hs[i].rooms[hw_idx];
-                            if let Some(room) = &$grid[idx.y][idx.x] {
-                                $pos.room = room.pos.clone();
-                            } else {unreachable!("hallways should hold indexes of valid rooms")}
-                            $chr = true;
-                            break
-                        }
+                    if next_pos == $hs[i].entr[1-hw_idx] {
+                        queue_position_cleanup!($stdout, $pos);
+                        $pos.x = $hs[i].entr[hw_idx].x;
+                        $pos.y = $hs[i].entr[hw_idx].y;
+                        $pos.$axis = $pos.$axis $sign 1;
+                        let idx = $hs[i].rooms[hw_idx];
+                        if let Some(room) = &$grid[idx.y][idx.x] {
+                            $pos.room = room.pos.clone();
+                        } else {unreachable!("hallways should hold indexes of valid rooms")}
+                        $chr = true;
+                        break
                     }
                 }
             }

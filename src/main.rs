@@ -496,20 +496,18 @@ fn add_hallway(hs_present: &mut [bool], hallways: &mut [Hallway], doors_count: &
 fn queue_hallways(stdout: &mut Stdout, hs_present: &[bool], hallways: &[Hallway]) {
     for i in 0..HALLWAYS_SIZE {
         if !hs_present[i] {break}
-        else {
-            queue!(stdout,
-                   SetAttribute(Attribute::Bold),
-                   SetBackgroundColor(Color::Cyan),
-                   SetForegroundColor(Color::Black),
-                   MoveTo(hallways[i].entr[0].x, hallways[i].entr[0].y), Print(format!("{}", i+1)),
-                   if i < 9 {
-                       MoveTo(hallways[i].entr[1].x, hallways[i].entr[1].y)
-                   } else {
-                       MoveTo(hallways[i].entr[1].x-1, hallways[i].entr[1].y)
-                   }, Print(format!("{}", i+1)),
-                   SetAttribute(Attribute::Reset),
-                   ResetColor).unwrap();
-        }
+        queue!(stdout,
+               SetAttribute(Attribute::Bold),
+               SetBackgroundColor(Color::Cyan),
+               SetForegroundColor(Color::Black),
+               MoveTo(hallways[i].entr[0].x, hallways[i].entr[0].y), Print(format!("{}", i+1)),
+               if i < 9 {
+                   MoveTo(hallways[i].entr[1].x, hallways[i].entr[1].y)
+               } else {
+                   MoveTo(hallways[i].entr[1].x-1, hallways[i].entr[1].y)
+               }, Print(format!("{}", i+1)),
+               SetAttribute(Attribute::Reset),
+               ResetColor).unwrap();
     }
 }
 
