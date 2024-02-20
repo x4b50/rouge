@@ -165,7 +165,7 @@ fn main() -> Result<(), ()> {
 
         let mut moved;
         let mut changed_room;
-        let mut run_away;
+        let mut run_away = false;
         let mut combat = Combat::new();
         let mut encounter = None;
         let mut enc_started = false;
@@ -225,7 +225,6 @@ fn main() -> Result<(), ()> {
             // events --------------------------------------------------------------
             moved = Move::NONE;
             changed_room = false;
-            run_away = false;
             if let Ok(e) = event::read() {
                 match e {
                     Event::Key(k) => {
@@ -321,7 +320,7 @@ fn main() -> Result<(), ()> {
                                         }
                                     }
                                     enemies_to_move.push((o, next_pos));
-                                }
+                                } run_away = false
                             }
                         }
                     }
