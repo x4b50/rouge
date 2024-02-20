@@ -165,6 +165,7 @@ fn main() -> Result<(), ()> {
 
         let mut moved;
         let mut changed_room;
+        let mut run_away;
         let mut combat = Combat::new();
         let mut encounter = None;
         let mut enc_started = false;
@@ -224,6 +225,7 @@ fn main() -> Result<(), ()> {
             // events --------------------------------------------------------------
             moved = Move::NONE;
             changed_room = false;
+            run_away = false;
             if let Ok(e) = event::read() {
                 match e {
                     Event::Key(k) => {
@@ -235,7 +237,7 @@ fn main() -> Result<(), ()> {
                                 KeyCode::Char('3') => {combat.action = CMove::Buff}
                                 KeyCode::Char('4') => {combat.action = CMove::Dodge}
                                 // enemy doesn't move immidiately after, so it doesn't run into you
-                                KeyCode::Char('5') => {combat.action = CMove::Run; changed_room=true}
+                                KeyCode::Char('5') => {combat.action = CMove::Run; run_away=true}
                                 _ => {combat.action = CMove::NONE}
                             }
                         } else {
@@ -305,7 +307,7 @@ fn main() -> Result<(), ()> {
                             }
                         } else {
                             if let Content::Enemy(_) = &obj.content {
-                                if (random() || random()) && !changed_room {
+                                if (random() || random()) && !changed_room && !run_away {
                                     let mut next_pos = Point {x: obj.x, y: obj.y};
                                     if p_y.abs_diff(o_y) > p_x.abs_diff(o_x) {
                                         match (p_y-o_y) > 0 {
