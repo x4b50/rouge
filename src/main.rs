@@ -27,14 +27,13 @@ const MONSTERS_MIN: u16 = MONSTERS_MAX*2/3;
 const MULT_ATK: i16 = 3;
 const MULT_DEF: i16 = 3;
 
-// const COMBAT;
-
 const LEVELUP: &str = "Level up!";
 const PICKUP_HP: &str = "You've picked up a healing kit";
 const PICKUP_DEF: &str = "You've picked up armor";
 const PICKUP_ATK: &str = "You've picked up a weapon";
 const PICKUP_GOLD: &str = "You've picked up gold";
 const PICKUP_EXP: &str = "You've picked up experience points";
+const NEW_LEVEL: &str = "You've entered a new dungeon level";
 
 fn main() -> Result<(), ()> {
     let mut stdout = stdout();
@@ -44,15 +43,16 @@ fn main() -> Result<(), ()> {
     if height < 42 {exit!(stdout, "Height of terminal window should be at least 42 characters");}
     let height = height-2;
     let frame = Rect {
-        x: width/4,
-        y: height/3,
-        w: width/2,
-        h: height/3,
+        x: width*3/10,
+        y: height*3/10,
+        w: width*4/10,
+        h: height*4/10,
     };
 
     let mut player = Player::random();
     let mut died = false;
     let mut exited = false;
+    let mut notification: Option<&str> = None;
 
     'game: loop {
         let mut grid: [[Option<Room>;ROOMS_X as usize];ROOMS_Y as usize] = Default::default();
@@ -169,7 +169,6 @@ fn main() -> Result<(), ()> {
         let mut encounter = None;
         let mut enc_started = false;
         let mut enc_ended = false;
-        let mut notification: Option<&str> = None;
         'lvl: loop {
             let y = (position.y *ROOMS_Y/height) as usize;
             let x = (position.x *ROOMS_X/width) as usize;
@@ -301,7 +300,7 @@ fn main() -> Result<(), ()> {
                                     }
                                 }
                                 Content::Enemy(_) => {if encounter == None {enc_started = true; encounter = Some(o)}}
-                                Content::Entrance => {break 'lvl;}
+                                Content::Entrance => {player.exp += 5; notification = Some(NEW_LEVEL); break 'lvl;}
                             }
                         } else {
                             if let Content::Enemy(_) = &obj.content {
