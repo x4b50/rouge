@@ -165,6 +165,7 @@ fn main() -> Result<(), ()> {
 
         let mut moved;
         let mut changed_room;
+        let mut run_away;
         let mut combat = Combat::new();
         let mut encounter = None;
         let mut enc_started = false;
@@ -224,6 +225,7 @@ fn main() -> Result<(), ()> {
             // events --------------------------------------------------------------
             moved = Move::NONE;
             changed_room = false;
+            run_away = false;
             if let Ok(e) = event::read() {
                 match e {
                     Event::Key(k) => {
@@ -234,7 +236,8 @@ fn main() -> Result<(), ()> {
                                 KeyCode::Char('2') => {combat.action = CMove::Block}
                                 KeyCode::Char('3') => {combat.action = CMove::Buff}
                                 KeyCode::Char('4') => {combat.action = CMove::Dodge}
-                                KeyCode::Char('5') => {combat.action = CMove::Run}
+                                // enemy doesn't move immidiately after, so it doesn't run into you
+                                KeyCode::Char('5') => {combat.action = CMove::Run; run_away=true}
                                 _ => {combat.action = CMove::NONE}
                             }
                         } else {
@@ -264,7 +267,7 @@ fn main() -> Result<(), ()> {
 
             let mut item_to_drop = None;
             let mut enemies_to_move = vec![];
-            if moved != Move::NONE && !changed_room {
+            if moved != Move::NONE {
                 if let Some(room) = &mut grid[y][x] {
                     let p_x = (position.x - position.room.x) as i16;
                     let p_y = (position.y - position.room.y) as i16;
@@ -304,7 +307,7 @@ fn main() -> Result<(), ()> {
                             }
                         } else {
                             if let Content::Enemy(_) = &obj.content {
-                                if random() || random() {
+                                if (random() || random()) && !changed_room && !run_away {
                                     let mut next_pos = Point {x: obj.x, y: obj.y};
                                     if p_y.abs_diff(o_y) > p_x.abs_diff(o_x) {
                                         match (p_y-o_y) > 0 {
@@ -437,7 +440,6 @@ fn queue_enemy_encounter(stdout: &mut Stdout, frame: &Rect, enemy: &Enemy, playe
     let pl_pad = " ".repeat((frame.w as usize-20)/4);
     let c_pad = " ".repeat((frame.w as usize-20)/3);
 
-    // TODO: automatic padding
     queue!(stdout,
            MoveTo(frame.x +(frame.w -ENCOUNTER_MSG.len()as u16 -str.len()as u16)/2, frame.y+1),
            Print(format!("{}{}", ENCOUNTER_MSG, str)),
@@ -511,7 +513,7 @@ fn queue_hallways(stdout: &mut Stdout, hs_present: &[bool], hallways: &[Hallway]
 }
 
 fn queue_rect(stdout: &mut Stdout, rect: &Rect) {
-    for y in 0..rect.h{
+    for y in 0..rect.h {
         for x in 0..rect.w {
             if x == 0 || x == rect.w-1 || y == 0 || y == rect.h-1 {
                 queue!(stdout,
@@ -529,7 +531,7 @@ fn queue_rect(stdout: &mut Stdout, rect: &Rect) {
 }
 
 fn queue_rect_cleanup(stdout: &mut Stdout, rect: &Rect) {
-    for y in 0..rect.h{
+    for y in 0..rect.h {
         queue!(stdout,
                MoveTo(rect.x, rect.y+y),
                Print(" ".repeat(rect.w.into()))
